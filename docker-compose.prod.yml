@@ -4,10 +4,10 @@ services:
     container_name: app-mariadb
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root}
-      MARIADB_DATABASE: ${MARIADB_DATABASE:-luogu_ti}
-      MARIADB_USER: ${MARIADB_USER:-app}
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-app}
+      MARIADB_ROOT_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
+      MARIADB_DATABASE: ${DATABASE_NAME:-luogu_ti}
+      MARIADB_USER: ${DATABASE_USER:-app}
+      MARIADB_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - mariadb_data:/var/lib/mysql
@@ -41,19 +41,17 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: mariadb
-      DB_PORT: 3306
-      DB_USER: ${MARIADB_USER:-app}
-      DB_PASSWORD: ${MARIADB_PASSWORD:-app}
-      DB_NAME: ${MARIADB_DATABASE:-luogu_ti}
+      DATABASE_HOST: ${DATABASE_HOST:-mariadb}
+      DATABASE_PORT: ${DATABASE_PORT:-3306}
+      DATABASE_USER: ${DATABASE_USER:-app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
+      DATABASE_NAME: ${DATABASE_NAME:-luogu_ti}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-}
-      WEB_BASE_URL: ${WEB_BASE_URL:-}
+      PUBLIC_API_BASE_URL: ""
+      WEB_BASE_URL: ""
       CPOAUTH_BASE_URL: ${CPOAUTH_BASE_URL:-https://auth.luogu.me}
       TZ: ${TZ:-Asia/Shanghai}
-    ports:
-      - "${API_BIND_HOST:-0.0.0.0}:${API_PORT:-3000}:3000"
     depends_on:
       mariadb:
         condition: service_healthy
@@ -66,12 +64,11 @@ services:
      dockerfile: web/Dockerfile
      args:
        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
-       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
        VITE_CDN_BASE_URL: ${VITE_CDN_BASE_URL:-}
    container_name: app-web
    restart: unless-stopped
    ports:
-     - "${WEB_BIND_HOST:-0.0.0.0}:${WEB_PORT:-5173}:80"
+     - "${APP_PORT:-8080}:80"
    volumes:
      - web_dist:/dist-share
    entrypoint: ["sh", "-c"]
