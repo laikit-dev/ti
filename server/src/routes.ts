@@ -205,6 +205,18 @@ const AI_SETTING_KEYS = {
   config: "ai.config"
 };
 
+const S3_SETTING_KEYS = {
+  region: "s3.region",
+  bucket: "s3.bucket",
+  accessKeyId: "s3.access_key_id",
+  secretAccessKey: "s3.secret_access_key",
+  endpoint: "s3.endpoint",
+  prefix: "s3.prefix",
+  concurrency: "s3.concurrency",
+  forcePathStyle: "s3.force_path_style",
+  cdnBaseUrl: "s3.cdn_base_url"
+};
+
 const SITE_SETTING_KEYS = {
   loginNoticeMarkdown: "site.login_notice_markdown"
 };
@@ -486,6 +498,21 @@ async function getCpoauthConfig(req) {
     clientSecret: String(settings[CPOAUTH_SETTING_KEYS.clientSecret] ?? "").trim(),
     callbackUrl: String(settings[CPOAUTH_SETTING_KEYS.callbackUrl] ?? "").trim() || buildDefaultCallbackUrl(req),
     scope: normalizeOauthScope(String(settings[CPOAUTH_SETTING_KEYS.scope] ?? "").trim() || "openid profile email")
+  };
+}
+
+async function getS3Config() {
+  const settings = await getAppSettings(Object.values(S3_SETTING_KEYS));
+  return {
+    region: String(settings[S3_SETTING_KEYS.region] ?? "").trim(),
+    bucket: String(settings[S3_SETTING_KEYS.bucket] ?? "").trim(),
+    accessKeyId: String(settings[S3_SETTING_KEYS.accessKeyId] ?? "").trim(),
+    secretAccessKey: String(settings[S3_SETTING_KEYS.secretAccessKey] ?? "").trim(),
+    endpoint: String(settings[S3_SETTING_KEYS.endpoint] ?? "").trim(),
+    prefix: String(settings[S3_SETTING_KEYS.prefix] ?? "").trim(),
+    concurrency: String(settings[S3_SETTING_KEYS.concurrency] ?? "8").trim(),
+    forcePathStyle: String(settings[S3_SETTING_KEYS.forcePathStyle] ?? "true").trim(),
+    cdnBaseUrl: String(settings[S3_SETTING_KEYS.cdnBaseUrl] ?? "").trim()
   };
 }
 
@@ -3010,6 +3037,61 @@ export function buildRouter() {
     });
   });
 
+  // ── S3 配置 ──
+  router.get("/admin/s3/config", async (req, res) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const config = await getS3Config();
+    return res.json({ config });
+  });
+
+  router.put("/admin/s3/config", async (req, res) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const region = String(req.body?.region ?? "").trim();
+    const bucket = String(req.body?.bucket ?? "").trim();
+    const accessKeyId = String(req.body?.accessKeyId ?? "").trim();
+    const secretAccessKey = String(req.body?.secretAccessKey ?? "").trim();
+    const endpoint = String(req.body?.endpoint ?? "").trim();
+    const prefix = String(req.body?.prefix ?? "").trim();
+    const concurrency = String(req.body?.concurrency ?? "8").trim();
+    const forcePathStyle = String(req.body?.forcePathStyle ?? "true").trim();
+    const cdnBaseUrl = String(req.body?.cdnBaseUrl ?? "").trim();
+
+    if (!region) return res.status(400).json({ error: "region is required" });
+    if (!bucket) return res.status(400).json({ error: "bucket is required" });
+    if (!accessKeyId) return res.status(400).json({ error: "accessKeyId is required" });
+    if (!secretAccessKey) return res.status(400).json({ error: "secretAccessKey is required" });
+    if (!endpoint) return res.status(400).json({ error: "endpoint is required" });
+
+    await Promise.all([
+      setAppSetting(S3_SETTING_KEYS.region, region),
+      setAppSetting(S3_SETTING_KEYS.bucket, bucket),
+      setAppSetting(S3_SETTING_KEYS.accessKeyId, accessKeyId),
+      setAppSetting(S3_SETTING_KEYS.secretAccessKey, secretAccessKey),
+      setAppSetting(S3_SETTING_KEYS.endpoint, endpoint),
+      setAppSetting(S3_SETTING_KEYS.prefix, prefix),
+      setAppSetting(S3_SETTING_KEYS.concurrency, concurrency),
+      setAppSetting(S3_SETTING_KEYS.forcePathStyle, forcePathStyle),
+      setAppSetting(S3_SETTING_KEYS.cdnBaseUrl, cdnBaseUrl)
+    ]);
+
+    return res.json({
+      config: {
+        region,
+        bucket,
+        accessKeyId,
+        secretAccessKey,
+        endpoint,
+        prefix,
+        concurrency,
+        forcePathStyle,
+        cdnBaseUrl
+      }
+    });
+  });
+
   router.get("/admin/ai/config", async (req, res) => {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
@@ -3363,6 +3445,7 @@ export function buildRouter() {
     const includeUsers = selections?.users !== false;
     const includeAiConfig = selections?.aiConfig !== false;
     const includeSubmissions = selections?.submissions !== false;
+    const includeS3Config = selections?.s3Config !== false;
     const password = typeof req.body?.password === "string" && req.body.password.trim()
       ? req.body.password.trim()
       : "";
@@ -3493,6 +3576,21 @@ export function buildRouter() {
         };
       }
 
+      if (includeS3Config) {
+        const s3Settings = await getAppSettings(Object.values(S3_SETTING_KEYS));
+        backup.data.s3Config = {
+          region: String(s3Settings[S3_SETTING_KEYS.region] ?? ""),
+          bucket: String(s3Settings[S3_SETTING_KEYS.bucket] ?? ""),
+          accessKeyId: String(s3Settings[S3_SETTING_KEYS.accessKeyId] ?? ""),
+          secretAccessKey: String(s3Settings[S3_SETTING_KEYS.secretAccessKey] ?? ""),
+          endpoint: String(s3Settings[S3_SETTING_KEYS.endpoint] ?? ""),
+          prefix: String(s3Settings[S3_SETTING_KEYS.prefix] ?? ""),
+          concurrency: String(s3Settings[S3_SETTING_KEYS.concurrency] ?? "8"),
+          forcePathStyle: String(s3Settings[S3_SETTING_KEYS.forcePathStyle] ?? "true"),
+          cdnBaseUrl: String(s3Settings[S3_SETTING_KEYS.cdnBaseUrl] ?? "")
+        };
+      }
+
       if (includeSubmissions) {
         const [submissionRows] = await dbPool.query(
           "SELECT id, user_uid, problemset_id, mode, status, answers_json, results_json, score, max_score, remaining_seconds, started_at, submitted_at, created_at, updated_at FROM submissions ORDER BY id ASC"
@@ -3547,6 +3645,7 @@ export function buildRouter() {
     const restoreUsers = selections?.users !== false;
     const restoreAiConfig = selections?.aiConfig !== false;
     const restoreSubmissions = selections?.submissions !== false;
+    const restoreS3Config = selections?.s3Config !== false;
 
     let backup;
     if (req.body?.encrypted) {
@@ -3743,6 +3842,29 @@ export function buildRouter() {
           "INSERT INTO app_settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
           [AI_SETTING_KEYS.config, JSON.stringify(normalized)]
         );
+      }
+
+      if (restoreS3Config && backup.data.s3Config && typeof backup.data.s3Config === "object") {
+        const s3Cfg = backup.data.s3Config;
+        const s3Pairs = [
+          [S3_SETTING_KEYS.region, s3Cfg.region],
+          [S3_SETTING_KEYS.bucket, s3Cfg.bucket],
+          [S3_SETTING_KEYS.accessKeyId, s3Cfg.accessKeyId],
+          [S3_SETTING_KEYS.secretAccessKey, s3Cfg.secretAccessKey],
+          [S3_SETTING_KEYS.endpoint, s3Cfg.endpoint],
+          [S3_SETTING_KEYS.prefix, s3Cfg.prefix],
+          [S3_SETTING_KEYS.concurrency, s3Cfg.concurrency],
+          [S3_SETTING_KEYS.forcePathStyle, s3Cfg.forcePathStyle],
+          [S3_SETTING_KEYS.cdnBaseUrl, s3Cfg.cdnBaseUrl]
+        ];
+        for (const [key, value] of s3Pairs) {
+          if (typeof value === "string") {
+            await connection.query(
+              "INSERT INTO app_settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+              [key, String(value)]
+            );
+          }
+        }
       }
 
       if (restoreSubmissions && Array.isArray(backup.data.submissions)) {

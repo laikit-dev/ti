@@ -12,6 +12,9 @@ RUN pnpm install --filter ./web... --frozen-lockfile
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+ARG VITE_CDN_BASE_URL=""
+ENV VITE_CDN_BASE_URL=${VITE_CDN_BASE_URL}
+
 COPY web/src ./web/src
 RUN pnpm -C web build
 

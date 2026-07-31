@@ -1,5 +1,33 @@
 # ti.luogu.me
 
+> Production deployment: see [docs/deploy.md](docs/deploy.md). It uses one root `.env` and `bash scripts/deploy.sh`.
+
+## Current production configuration
+
+Production uses only the root `.env` file. Configure the public port and database connection there:
+
+```env
+APP_PORT=8080
+
+# Use `mariadb` for the database container bundled with this project.
+# Replace it with an IP address or hostname when using an external MariaDB/MySQL server.
+DATABASE_HOST=mariadb
+DATABASE_PORT=3306
+DATABASE_NAME=luogu_ti
+DATABASE_USER=app
+DATABASE_PASSWORD=replace-with-a-long-random-password
+```
+
+The API reads `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, and `DATABASE_PASSWORD` directly. Redis and the API service use the private Docker network, so their host and ports do not need to be configured for normal deployment.
+
+After the first `.env` setup, deploy or update the server with one command:
+
+```bash
+bash scripts/deploy.sh
+```
+
+The script pulls the current branch with `git pull --ff-only`, builds the stack once, runs database initialization, and starts the services. See [docs/deploy.md](docs/deploy.md) for the first-clone procedure and external database notes.
+
 在线竞赛题库与套题系统，支持题目浏览、考试 / 练习模式、AI 辅助提示与解析、CPOAuth 统一认证。
 
 > [!IMPORTANT]
@@ -98,10 +126,10 @@ corepack prepare pnpm@9.15.4 --activate
 pnpm install
 ```
 
-### 3. 配置后端环境变量
+### 3. 配置环境变量
 
 ```bash
-cp server/.env.example server/.env
+cp .env.example .env
 ```
 
 默认开发环境配置如下：
@@ -114,7 +142,7 @@ cp server/.env.example server/.env
 如需指定前端请求地址，可额外执行：
 
 ```bash
-cp web/.env.example web/.env.development
+# VITE_API_BASE_URL is loaded automatically from the repository root .env
 ```
 
 ### 4. 启动开发环境
@@ -144,7 +172,7 @@ pnpm run dev:infra
 - MariaDB：`127.0.0.1:3307`
 - Redis：`127.0.0.1:6380`
 
-此时把 `server/.env` 改成：
+此时修改根目录 `.env` 中的连接端口：
 
 ```env
 DB_HOST=127.0.0.1

@@ -209,13 +209,13 @@
 #include <iostream>
 using namespace std;
 
-int main() {
+int main() '{'
     int a, b;
     cin >> a >> b;
     int x = a + b;
     cout << x << endl;
     return 0;
-}
+'}
 \`\`\`
 [/material]
 
@@ -500,6 +500,21 @@ C. 选项C
       createdAt: "创建时间",
       noTokens: "暂无 token"
     },
+    s3: {
+      saved: "S3 配置已保存。",
+      configAnchor: "S3 CDN 配置",
+      configHeading: "S3 CDN 配置",
+      configHint: "配置 S3 兼容存储用于加速静态资源分发。上传脚本将从数据库读取这些配置。",
+      region: "Region",
+      bucket: "Bucket",
+      endpoint: "Endpoint",
+      cdnBaseUrl: "CDN Base URL",
+      accessKeyId: "Access Key ID",
+      secretAccessKey: "Secret Access Key",
+      prefix: "Prefix",
+      concurrency: "并发数",
+      forcePathStyle: "Force Path Style"
+    },
     ai: {
       saved: "AI 配置已保存。",
       configAnchor: "AI 配置",
@@ -652,6 +667,7 @@ C. 选项C
       users: "用户",
       aiConfig: "AI 配置",
       submissions: "提交记录",
+      s3Config: "S3 CDN 配置",
       adminTokens: "Admin Token",
       passwordLabel: "备份密码（可选）",
       passwordPlaceholder: "留空则不加密",

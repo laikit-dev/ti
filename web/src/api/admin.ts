@@ -78,6 +78,18 @@ export interface AiModelConfig {
   enabled: boolean;
 }
 
+export interface S3Config {
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint: string;
+  prefix: string;
+  concurrency: string;
+  forcePathStyle: string;
+  cdnBaseUrl: string;
+}
+
 export interface AdminProblemset extends ProblemsetSummary {
   createdByUid?: string;
   createdAt?: string;
@@ -339,6 +351,33 @@ export async function updateAiConfig(payload: AiConfig): Promise<AiConfig> {
   return (data as AiConfigResponse).config;
 }
 
+interface S3ConfigResponse {
+  config: S3Config;
+}
+
+export async function fetchS3Config(): Promise<S3Config> {
+  const result = await apiGet<S3ConfigResponse>("/api/admin/s3/config", {
+    headers: adminHeaders()
+  });
+  return result.config;
+}
+
+export async function updateS3Config(payload: S3Config): Promise<S3Config> {
+  const response = await fetch(`${apiBaseUrl}/api/admin/s3/config`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...adminHeaders()
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(String(data?.error ?? `HTTP ${response.status}`));
+  }
+  return (data as S3ConfigResponse).config;
+}
+
 export async function fetchAdminTokens(): Promise<AdminToken[]> {
   const result = await apiGet<AdminTokensResponse>("/api/admin/admin-tokens", {
     headers: adminHeaders()
@@ -452,6 +491,7 @@ export interface BackupSelections {
   users: boolean;
   aiConfig: boolean;
   submissions: boolean;
+  s3Config: boolean;
 }
 
 export async function exportBackup(selections: BackupSelections, password: string): Promise<unknown> {

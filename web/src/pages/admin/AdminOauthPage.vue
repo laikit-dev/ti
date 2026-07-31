@@ -7,11 +7,14 @@ import {
   deleteAdminToken,
   fetchAdminTokens,
   fetchCpoauthConfig,
+  fetchS3Config,
   type AiConfig,
   type AiModelConfig,
   type AdminToken,
+  type S3Config,
   updateAiConfig,
-  updateCpoauthConfig
+  updateCpoauthConfig,
+  updateS3Config
 } from "../../api/admin";
 import { notifyError, notifySuccess } from "../../composables/feedback";
 
@@ -22,12 +25,26 @@ const tokensLoading = ref(false);
 const creatingToken = ref(false);
 const tokens = ref<AdminToken[]>([]);
 const aiSaving = ref(false);
+const s3Loading = ref(false);
+const s3Saving = ref(false);
 
 const form = reactive({
   clientId: "",
   clientSecret: "",
   callbackUrl: "",
   scope: "openid profile email"
+});
+
+const s3Form = reactive<S3Config>({
+  region: "",
+  bucket: "",
+  accessKeyId: "",
+  secretAccessKey: "",
+  endpoint: "",
+  prefix: "",
+  concurrency: "8",
+  forcePathStyle: "true",
+  cdnBaseUrl: ""
 });
 
 const aiForm = reactive<AiConfig>({
@@ -117,6 +134,57 @@ async function saveConfig() {
   }
 }
 
+async function loadS3Config() {
+  s3Loading.value = true;
+  try {
+    const config = await fetchS3Config();
+    s3Form.region = config.region;
+    s3Form.bucket = config.bucket;
+    s3Form.accessKeyId = config.accessKeyId;
+    s3Form.secretAccessKey = config.secretAccessKey;
+    s3Form.endpoint = config.endpoint;
+    s3Form.prefix = config.prefix;
+    s3Form.concurrency = config.concurrency;
+    s3Form.forcePathStyle = config.forcePathStyle;
+    s3Form.cdnBaseUrl = config.cdnBaseUrl;
+  } catch (err) {
+    notifyError(String((err as Error)?.message ?? err));
+  } finally {
+    s3Loading.value = false;
+  }
+}
+
+async function saveS3Config() {
+  s3Saving.value = true;
+  try {
+    const config = await updateS3Config({
+      region: s3Form.region.trim(),
+      bucket: s3Form.bucket.trim(),
+      accessKeyId: s3Form.accessKeyId.trim(),
+      secretAccessKey: s3Form.secretAccessKey.trim(),
+      endpoint: s3Form.endpoint.trim(),
+      prefix: s3Form.prefix.trim(),
+      concurrency: s3Form.concurrency.trim(),
+      forcePathStyle: s3Form.forcePathStyle.trim(),
+      cdnBaseUrl: s3Form.cdnBaseUrl.trim()
+    });
+    s3Form.region = config.region;
+    s3Form.bucket = config.bucket;
+    s3Form.accessKeyId = config.accessKeyId;
+    s3Form.secretAccessKey = config.secretAccessKey;
+    s3Form.endpoint = config.endpoint;
+    s3Form.prefix = config.prefix;
+    s3Form.concurrency = config.concurrency;
+    s3Form.forcePathStyle = config.forcePathStyle;
+    s3Form.cdnBaseUrl = config.cdnBaseUrl;
+    notifySuccess(t("admin.s3.saved"));
+  } catch (err) {
+    notifyError(String((err as Error)?.message ?? err));
+  } finally {
+    s3Saving.value = false;
+  }
+}
+
 async function saveAiConfig() {
   aiSaving.value = true;
   try {
@@ -198,7 +266,7 @@ async function removeToken(id: number) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadConfig(), loadAiConfig(), loadTokens()]);
+  await Promise.all([loadConfig(), loadS3Config(), loadAiConfig(), loadTokens()]);
 });
 </script>
 
@@ -206,6 +274,7 @@ onMounted(async () => {
   <div class="admin-page">
     <nav class="admin-anchor-nav">
       <a href="#oauth-form">{{ t("admin.oauth.configAnchor") }}</a>
+      <a href="#s3-form">{{ t("admin.s3.configAnchor") }}</a>
       <a href="#ai-form">{{ t("admin.ai.configAnchor") }}</a>
       <a href="#admin-tokens">{{ t("admin.oauth.tokenAnchor") }}</a>
     </nav>
@@ -238,6 +307,61 @@ onMounted(async () => {
       <div class="admin-actions">
         <button class="admin-btn primary" type="button" :disabled="saving" @click="saveConfig">
           {{ saving ? t("common.saving") : t("admin.oauth.save") }}
+        </button>
+      </div>
+    </section>
+
+    <section id="s3-form" class="admin-card">
+      <div class="admin-head">
+        <h3>{{ t("admin.s3.configHeading") }}</h3>
+        <button class="admin-btn" type="button" @click="loadS3Config">{{ t("common.refresh") }}</button>
+      </div>
+      <p class="admin-hint">{{ t("admin.s3.configHint") }}</p>
+      <div v-if="s3Loading">{{ t("common.loading") }}</div>
+      <div v-else class="admin-form-grid">
+        <label>
+          <span>{{ t("admin.s3.region") }}</span>
+          <input v-model.trim="s3Form.region" type="text" placeholder="us-east-1" />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.bucket") }}</span>
+          <input v-model.trim="s3Form.bucket" type="text" placeholder="my-bucket" />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.endpoint") }}</span>
+          <input v-model.trim="s3Form.endpoint" type="text" placeholder="https://s3.example.com" />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.cdnBaseUrl") }}</span>
+          <input v-model.trim="s3Form.cdnBaseUrl" type="text" placeholder="https://cdn.example.com" />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.accessKeyId") }}</span>
+          <input v-model.trim="s3Form.accessKeyId" type="text" placeholder="AKIA..." />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.secretAccessKey") }}</span>
+          <input v-model.trim="s3Form.secretAccessKey" type="password" placeholder="..." />
+        </label>
+        <label>
+          <span>{{ t("admin.s3.prefix") }}</span>
+          <input v-model.trim="s3Form.prefix" type="text" placeholder="static/" />
+        </label>
+        <label class="admin-form-row-half">
+          <span>{{ t("admin.s3.concurrency") }}</span>
+          <input v-model.trim="s3Form.concurrency" type="text" placeholder="8" />
+        </label>
+        <label class="admin-form-row-half">
+          <span>{{ t("admin.s3.forcePathStyle") }}</span>
+          <select v-model="s3Form.forcePathStyle">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </label>
+      </div>
+      <div class="admin-actions">
+        <button class="admin-btn primary" type="button" :disabled="s3Saving" @click="saveS3Config">
+          {{ s3Saving ? t("common.saving") : t("common.save") }}
         </button>
       </div>
     </section>

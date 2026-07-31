@@ -4,10 +4,10 @@ services:
     container_name: app-mariadb
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root}
-      MARIADB_DATABASE: ${MARIADB_DATABASE:-luogu_ti}
-      MARIADB_USER: ${MARIADB_USER:-app}
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-app}
+      MARIADB_ROOT_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
+      MARIADB_DATABASE: ${DATABASE_NAME:-luogu_ti}
+      MARIADB_USER: ${DATABASE_USER:-app}
+      MARIADB_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - mariadb_data:/var/lib/mysql
@@ -41,19 +41,17 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: mariadb
-      DB_PORT: 3306
-      DB_USER: ${MARIADB_USER:-app}
-      DB_PASSWORD: ${MARIADB_PASSWORD:-app}
-      DB_NAME: ${MARIADB_DATABASE:-luogu_ti}
+      DATABASE_HOST: ${DATABASE_HOST:-mariadb}
+      DATABASE_PORT: ${DATABASE_PORT:-3306}
+      DATABASE_USER: ${DATABASE_USER:-app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
+      DATABASE_NAME: ${DATABASE_NAME:-luogu_ti}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-}
-      WEB_BASE_URL: ${WEB_BASE_URL:-}
+      PUBLIC_API_BASE_URL: ""
+      WEB_BASE_URL: ""
       CPOAUTH_BASE_URL: ${CPOAUTH_BASE_URL:-https://auth.luogu.me}
       TZ: ${TZ:-Asia/Shanghai}
-    ports:
-      - "${API_BIND_HOST:-0.0.0.0}:${API_PORT:-3000}:3000"
     depends_on:
       mariadb:
         condition: service_healthy
@@ -61,19 +59,72 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-    container_name: app-web
-    restart: unless-stopped
-    ports:
-      - "${WEB_BIND_HOST:-0.0.0.0}:${WEB_PORT:-5173}:80"
-    depends_on:
-      - api
+   build:
+     context: .
+     dockerfile: web/Dockerfile
+     args:
+       NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+       VITE_CDN_BASE_URL: ${VITE_CDN_BASE_URL:-}
+   container_name: app-web
+   restart: unless-stopped
+   ports:
+     - "${APP_PORT:-8080}:80"
+   volumes:
+     - web_dist:/dist-share
+   entrypoint: ["sh", "-c"]
+   command:
+     - |
+       cp -a /usr/share/nginx/html/. /dist-share/
+       exec nginx -g "daemon off;"
+   depends_on:
+     - api
+
+  s3-upload:
+   image: node:20-alpine
+   container_name: app-s3-upload
+   profiles:
+     - s3-upload
+   working_dir: /app
+   environment:
+     S3_UPLOAD_ENABLED: ${S3_UPLOAD_ENABLED:-false}
+     S3_API_BASE_URL: ${S3_API_BASE_URL:-}
+     S3_API_ADMIN_TOKEN: ${S3_API_ADMIN_TOKEN:-}
+     S3_REGION: ${S3_REGION:-}
+     S3_BUCKET: ${S3_BUCKET:-}
+     S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+     S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+     S3_ENDPOINT: ${S3_ENDPOINT:-}
+     S3_PREFIX: ${S3_PREFIX:-}
+     S3_BUILD_DIR: ${S3_BUILD_DIR:-web/dist}
+     S3_UPLOAD_CONCURRENCY: ${S3_UPLOAD_CONCURRENCY:-8}
+     S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+     S3_SESSION_TOKEN: ${S3_SESSION_TOKEN:-}
+   volumes:
+     - ./scripts:/app/scripts:ro
+     - web_dist:/app/web/dist:ro
+   entrypoint: ["sh", "-c"]
+   command:
+     - |
+       echo "[s3-upload] Waiting for web dist files..."
+       for i in $(seq 1 30); do
+         if [ -f /app/web/dist/index.html ]; then
+           echo "[s3-upload] Found web dist, starting upload."
+           break
+         fi
+         sleep 2
+       done
+       if [ ! -f /app/web/dist/index.html ]; then
+         echo "[s3-upload] ERROR: web dist not found after 60s"
+         exit 1
+       fi
+       npm install -g pnpm@9.15.4 >/dev/null 2>&1
+       cd /app && pnpm add @aws-sdk/client-s3 dotenv >/dev/null 2>&1
+       node /app/scripts/upload-s3.mjs
+   depends_on:
+     web:
+       condition: service_started
 
 volumes:
   mariadb_data:
   redis_data:
+  web_dist:
