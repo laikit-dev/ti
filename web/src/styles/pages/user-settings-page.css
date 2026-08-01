@@ -35,6 +35,19 @@
   line-height: 1.6;
 }
 
+.guest-settings-notice {
+  border-left-color: var(--app-warning);
+}
+
+.guest-settings-notice .ti-card__body {
+  background: var(--app-warning-soft);
+}
+
+.guest-settings-notice i,
+.guest-settings-notice a {
+  color: var(--app-warning-text);
+}
+
 .settings-item .ti-card__body {
   display: grid;
   gap: 10px;

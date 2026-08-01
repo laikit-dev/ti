@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import TiLayout from "../layouts/TiLayout.vue";
 import { getMySettings, loadLocalUser } from "../api/auth";
+import { readHighlighterEnabled, readSubmissionAnalysisMode } from "../utils/devicePreferences";
 import { problemsetApi, type ProblemQuestion, type ProblemsetDetail } from "../api/problemset";
 import {
   fetchActiveExam,
@@ -39,9 +40,9 @@ const selectedSubmission = ref<SubmissionDetail | null>(null);
 const activeExam = ref<SubmissionRecord | null>(null);
 const historyCollapsed = ref(false);
 const showExamConflictModal = ref(false);
-const submissionAnalysisMode = ref<"none" | "wrong_only" | "all">("none");
+const submissionAnalysisMode = ref<"none" | "wrong_only" | "all">(readSubmissionAnalysisMode());
 const historyAnalysisVisible = ref<Record<string, boolean>>({});
-const highlighterEnabled = ref(true);
+const highlighterEnabled = ref(readHighlighterEnabled());
 
 const questionBodyCardEl = ref<HTMLElement | null>(null);
 const historyBodyCardEl = ref<HTMLElement | null>(null);
@@ -259,11 +260,12 @@ async function loadDetail() {
       submissionAnalysisMode.value = mode === "wrong_only" || mode === "all" ? mode : "none";
       highlighterEnabled.value = Boolean(settings.highlighterEnabled ?? true);
     } catch {
-      submissionAnalysisMode.value = "none";
-      highlighterEnabled.value = true;
+      submissionAnalysisMode.value = readSubmissionAnalysisMode();
+      highlighterEnabled.value = readHighlighterEnabled();
     }
   } else {
-    submissionAnalysisMode.value = "none";
+    submissionAnalysisMode.value = readSubmissionAnalysisMode();
+    highlighterEnabled.value = readHighlighterEnabled();
   }
 
   try {
