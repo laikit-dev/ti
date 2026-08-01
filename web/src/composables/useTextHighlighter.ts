@@ -33,6 +33,7 @@ export function useTextHighlighter() {
   function onMouseUp(event: MouseEvent) {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) {
+      dismissToolbar();
       return;
     }
 
@@ -58,8 +59,9 @@ export function useTextHighlighter() {
   function onDocumentMouseDown(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (target.closest(".highlight-toolbar")) return;
-    // Only dismiss if toolbar is visible and click is outside container
-    if (toolbarState.visible && !currentContainer?.contains(target as Node)) {
+    // Any click outside the toolbar dismisses it. A subsequent text selection
+    // inside the container will open it again from onMouseUp.
+    if (toolbarState.visible) {
       dismissToolbar();
     }
   }

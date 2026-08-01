@@ -20,6 +20,16 @@ export interface AuthUser {
   createdAt: string;
 }
 
+export interface PersonalExportStatus {
+  canExport: boolean;
+  lastExportedAt: string | null;
+  nextAvailableAt: string | null;
+  cooldownDays: number;
+  minimumAccountAgeDays: number;
+  restrictionReason: "registration_wait" | "cooldown" | null;
+  isUnlimited: boolean;
+}
+
 interface UserResponse {
   user: AuthUser;
 }
@@ -131,5 +141,27 @@ export async function updateMySettings(payload: {
   return {
     settings: result.settings,
     user: result.user
+  };
+}
+
+export async function getPersonalExportStatus(): Promise<PersonalExportStatus> {
+  return apiGet<PersonalExportStatus>("/api/users/_me/export-status");
+}
+
+export async function requestPersonalDataExport(): Promise<{ blob: Blob; filename: string }> {
+  const uid = loadLocalUser()?.uid ?? "";
+  const response = await fetch(`${apiBaseUrl}/api/users/_me/export`, {
+    method: "POST",
+    headers: uid ? { "x-user-uid": uid } : {}
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(String(payload?.error ?? `HTTP ${response.status}`));
+  }
+  const disposition = String(response.headers.get("Content-Disposition") ?? "");
+  const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+  return {
+    blob: await response.blob(),
+    filename: filenameMatch?.[1] || "ti-personal-data.pdf"
   };
 }

@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vu
 import { useI18n } from "vue-i18n";
 import TiLayout from "../layouts/TiLayout.vue";
 import { getMySettings, loadLocalUser, type AutosaveIntervalSeconds } from "../api/auth";
+import { readHighlighterEnabled } from "../utils/devicePreferences";
 import { problemsetApi, type ProblemQuestion, type ProblemsetDetail } from "../api/problemset";
 import {
   ActiveExamConflictError,
@@ -61,7 +62,7 @@ const noticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const showGuestLoginModal = ref(false);
 const autosaveIntervalSeconds = ref<AutosaveIntervalSeconds>(DEFAULT_AUTOSAVE_INTERVAL_SECONDS);
 const skipLeaveConfirmOnce = ref(false);
-const highlighterEnabled = ref(true);
+const highlighterEnabled = ref(readHighlighterEnabled());
 
 const answers = reactive<Record<string, string>>({});
 const results = reactive<Record<string, QuestionResult>>({});
@@ -190,6 +191,7 @@ function getAutosaveIntervalMs() {
 async function loadAutosaveIntervalSetting() {
   if (!currentUser?.uid) {
     autosaveIntervalSeconds.value = DEFAULT_AUTOSAVE_INTERVAL_SECONDS;
+    highlighterEnabled.value = readHighlighterEnabled();
     return;
   }
   try {
@@ -198,7 +200,7 @@ async function loadAutosaveIntervalSetting() {
     highlighterEnabled.value = Boolean(settings.highlighterEnabled ?? true);
   } catch {
     autosaveIntervalSeconds.value = DEFAULT_AUTOSAVE_INTERVAL_SECONDS;
-    highlighterEnabled.value = true;
+    highlighterEnabled.value = readHighlighterEnabled();
   }
 }
 

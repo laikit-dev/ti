@@ -44,12 +44,16 @@ function renderHighlightedCode(code: string, language: string) {
   while (lines.length > 1 && lines[lines.length - 1] === "") {
     lines.pop();
   }
-  return lines
+  const html = lines
     .map((line, index) => {
       const content = highlightLine(line, language);
       return `<span class="code-line"><span class="line-no">${index + 1}</span><span class="line-content">${content}</span></span>`;
     })
     .join("");
+  return {
+    html,
+    lineNumberWidth: `${Math.max(2, String(lines.length).length)}ch`
+  };
 }
 
 const renderer = new MarkdownIt({
@@ -71,7 +75,8 @@ const renderer = new MarkdownIt({
     }
 
     const className = resolvedLanguage ? `language-${resolvedLanguage}` : "language-plain";
-    return `<pre class="hljs code-block"><code class="${className}">${renderHighlightedCode(code, resolvedLanguage)}</code></pre>`;
+    const renderedCode = renderHighlightedCode(code, resolvedLanguage);
+    return `<pre class="hljs code-block"><code class="${className}" style="--code-line-number-width: ${renderedCode.lineNumberWidth}">${renderedCode.html}</code></pre>`;
   }
 });
 

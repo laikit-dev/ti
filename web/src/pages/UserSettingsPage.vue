@@ -1,30 +1,49 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import UiCard from "../components/UiCard.vue";
 import TiLayout from "../layouts/TiLayout.vue";
 import { fetchAiModels, type AiPublicModel } from "../api/ai";
 import {
   getMySettings,
+  getPersonalExportStatus,
   loadLocalUser,
+  requestPersonalDataExport,
   saveLocalUser,
   updateMySettings,
-  type AutosaveIntervalSeconds
+  type AutosaveIntervalSeconds,
+  type PersonalExportStatus
 } from "../api/auth";
+import {
+  readHighlighterEnabled,
+  readSubmissionAnalysisMode,
+  saveDeviceContentPreferences,
+  type SubmissionAnalysisMode
+} from "../utils/devicePreferences";
+import {
+  readSidebarAutoBehavior,
+  saveSidebarAutoBehavior,
+  type SidebarAutoBehavior
+} from "../utils/sidebarPreferences";
 
-const router = useRouter();
 const { t } = useI18n();
 const loading = ref(true);
 const saving = ref(false);
 const error = ref("");
 const success = ref("");
+const isLoggedIn = ref(Boolean(loadLocalUser()?.uid));
+type SettingsSection = "account" | "preferences" | "ai";
+const activeSection = ref<SettingsSection>(isLoggedIn.value ? "account" : "preferences");
+const exporting = ref(false);
+const exportError = ref("");
+const exportStatus = ref<PersonalExportStatus | null>(null);
 
 const recordsPublic = ref(true);
 const profileCoverUrl = ref("");
-const submissionAnalysisMode = ref<"none" | "wrong_only" | "all">("wrong_only");
+const submissionAnalysisMode = ref<SubmissionAnalysisMode>(readSubmissionAnalysisMode());
 const autosaveIntervalSeconds = ref<AutosaveIntervalSeconds>(30);
-const highlighterEnabled = ref(true);
+const highlighterEnabled = ref(readHighlighterEnabled());
+const sidebarAutoBehavior = ref<SidebarAutoBehavior>(readSidebarAutoBehavior());
 const aiModels = ref<AiPublicModel[]>([]);
 const aiModelId = ref("");
 const aiModelUsageRows = computed(() => aiModels.value.map((model) => ({
@@ -39,6 +58,15 @@ const defaultProfileCovers = [
   "https://resources.cn-sy1.rains3.com/ti/banner_2.webp",
   "https://resources.cn-sy1.rains3.com/ti/banner_3.webp"
 ] as const;
+const nextExportTime = computed(() => {
+  if (!exportStatus.value?.nextAvailableAt) return "";
+  const date = new Date(exportStatus.value.nextAvailableAt);
+  if (Number.isNaN(date.getTime())) return exportStatus.value.nextAvailableAt;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+});
 
 const autosaveOptions: Array<{ value: AutosaveIntervalSeconds; label: string }> = [
   { value: 30, label: t("settings.autosave.30") },
@@ -68,8 +96,12 @@ function clearCoverUrl() {
 
 async function loadSettings() {
   const me = loadLocalUser();
+  isLoggedIn.value = Boolean(me?.uid);
+  submissionAnalysisMode.value = readSubmissionAnalysisMode();
+  highlighterEnabled.value = readHighlighterEnabled();
+  sidebarAutoBehavior.value = readSidebarAutoBehavior();
   if (!me?.uid) {
-    router.replace("/auth/login");
+    loading.value = false;
     return;
   }
 
@@ -77,8 +109,13 @@ async function loadSettings() {
   error.value = "";
   success.value = "";
   try {
-    const [settings, modelPayload] = await Promise.all([getMySettings(), fetchAiModels()]);
+    const [settings, modelPayload, personalExportStatus] = await Promise.all([
+      getMySettings(),
+      fetchAiModels(),
+      getPersonalExportStatus()
+    ]);
     aiModels.value = modelPayload.models;
+    exportStatus.value = personalExportStatus;
     recordsPublic.value = Boolean(settings.recordsPublic);
     profileCoverUrl.value = String(settings.profileCoverUrl ?? "");
     submissionAnalysisMode.value = settings.submissionAnalysisMode ?? "wrong_only";
@@ -92,12 +129,45 @@ async function loadSettings() {
   }
 }
 
+async function exportPersonalData() {
+  if (exporting.value || exportStatus.value?.canExport === false) return;
+  exporting.value = true;
+  exportError.value = "";
+  try {
+    const { blob, filename } = await requestPersonalDataExport();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    exportStatus.value = await getPersonalExportStatus();
+  } catch (err) {
+    exportError.value = String((err as Error)?.message ?? err);
+    try {
+      exportStatus.value = await getPersonalExportStatus();
+    } catch {
+      // Keep the original export error visible when status refresh also fails.
+    }
+  } finally {
+    exporting.value = false;
+  }
+}
+
 async function submitSettings() {
   if (saving.value) return;
   saving.value = true;
   error.value = "";
   success.value = "";
   try {
+    saveDeviceContentPreferences(submissionAnalysisMode.value, highlighterEnabled.value);
+    saveSidebarAutoBehavior(sidebarAutoBehavior.value);
+    if (!isLoggedIn.value) {
+      success.value = t("settings.saved");
+      return;
+    }
     const result = await updateMySettings({
       recordsPublic: recordsPublic.value,
       profileCoverUrl: profileCoverUrl.value.trim(),
@@ -128,7 +198,7 @@ onMounted(loadSettings);
     :loading-label="t('settings.loading')"
   >
     <section class="settings-root">
-      <UiCard as="div" class="settings-notice" compact>
+      <UiCard v-if="isLoggedIn" as="div" class="settings-notice" compact>
         <i class="fa-solid fa-circle-info"></i>
         <div>
           <strong>{{ t("settings.noticeTitle") }}</strong>
@@ -136,7 +206,64 @@ onMounted(loadSettings);
         </div>
       </UiCard>
 
+      <UiCard v-else as="div" class="settings-notice guest-settings-notice" compact>
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+          <strong>{{ t("settings.guestNoticeTitle") }}</strong>
+          <p>
+            {{ t("settings.guestNoticeMessage") }}
+            <RouterLink to="/auth/login">{{ t("settings.guestNoticeLogin") }}</RouterLink>
+          </p>
+        </div>
+      </UiCard>
+
       <template v-if="!loading">
+        <nav class="panel-card settings-tabs" role="tablist" :aria-label="t('settings.sectionNavigation')">
+          <button
+            v-if="isLoggedIn"
+            id="settings-tab-account"
+            type="button"
+            role="tab"
+            aria-controls="settings-panel-account settings-panel-data"
+            :aria-selected="activeSection === 'account'"
+            :class="{ active: activeSection === 'account' }"
+            @click="activeSection = 'account'"
+          >
+            {{ t("settings.sectionAccount") }}
+          </button>
+          <button
+            id="settings-tab-preferences"
+            type="button"
+            role="tab"
+            aria-controls="settings-panel-preferences"
+            :aria-selected="activeSection === 'preferences'"
+            :class="{ active: activeSection === 'preferences' }"
+            @click="activeSection = 'preferences'"
+          >
+            {{ t("settings.sectionPreferences") }}
+          </button>
+          <button
+            v-if="isLoggedIn"
+            id="settings-tab-ai"
+            type="button"
+            role="tab"
+            aria-controls="settings-panel-ai"
+            :aria-selected="activeSection === 'ai'"
+            :class="{ active: activeSection === 'ai' }"
+            @click="activeSection = 'ai'"
+          >
+            {{ t("settings.sectionAi") }}
+          </button>
+        </nav>
+
+        <section
+          v-if="isLoggedIn && activeSection === 'account'"
+          id="settings-panel-account"
+          class="settings-section"
+          role="tabpanel"
+          aria-labelledby="settings-tab-account"
+        >
+
         <UiCard as="div" class="settings-item" compact>
           <label class="item-title" for="records-public"><i class="fa-solid fa-eye"></i>{{ t("settings.recordsPublic") }}</label>
           <div class="switch">
@@ -152,6 +279,36 @@ onMounted(loadSettings);
             </label>
           </div>
         </UiCard>
+
+        <UiCard as="div" class="settings-item" compact>
+          <label class="item-title" for="profile-cover-url"><i class="fa-regular fa-image"></i>{{ t("settings.coverUrl") }}</label>
+          <input
+            id="profile-cover-url"
+            v-model.trim="profileCoverUrl"
+            class="text-input"
+            type="url"
+            :placeholder="t('settings.coverPlaceholder')"
+          />
+          <p class="item-desc">{{ t("settings.coverDesc") }}</p>
+          <div class="cover-actions">
+            <button type="button" class="minor-btn" @click="clearCoverUrl">
+              <i class="fa-solid fa-eraser"></i>
+              {{ t("settings.clearCover") }}
+            </button>
+          </div>
+          <div class="cover-preview" :style="profileCoverUrl ? { backgroundImage: `url(${profileCoverUrl})` } : {}">
+            <div class="preview-tip"><i class="fa-solid fa-panorama"></i>{{ t("common.preview") }}</div>
+          </div>
+        </UiCard>
+        </section>
+
+        <section
+          v-show="activeSection === 'preferences'"
+          id="settings-panel-preferences"
+          class="settings-section"
+          role="tabpanel"
+          aria-labelledby="settings-tab-preferences"
+        >
 
         <UiCard as="div" class="settings-item" compact>
           <label class="item-title" for="submission-analysis-mode"><i class="fa-solid fa-file-circle-check"></i>{{ t("settings.analysisMode") }}</label>
@@ -175,7 +332,7 @@ onMounted(loadSettings);
           <p class="item-desc">{{ t("settings.analysisDesc") }}</p>
         </UiCard>
 
-        <UiCard as="div" class="settings-item" compact>
+        <UiCard v-if="isLoggedIn" as="div" class="settings-item" compact>
           <label class="item-title"><i class="fa-regular fa-floppy-disk"></i>{{ t("settings.autosaveTitle") }}</label>
           <div class="switch">
             <label v-for="option in autosaveOptions" :key="option.value">
@@ -205,6 +362,32 @@ onMounted(loadSettings);
         </UiCard>
 
         <UiCard as="div" class="settings-item" compact>
+          <label class="item-title"><i class="fa-solid fa-columns"></i>{{ t("settings.sidebarAutoBehaviorTitle") }}</label>
+          <div class="switch">
+            <label>
+              <input v-model="sidebarAutoBehavior" type="radio" value="overlay" />
+              <i class="fa-solid fa-layer-group"></i>
+              <span>{{ t("settings.sidebarAutoBehaviorOverlay") }}</span>
+            </label>
+            <label>
+              <input v-model="sidebarAutoBehavior" type="radio" value="push" />
+              <i class="fa-solid fa-arrows-left-right-to-line"></i>
+              <span>{{ t("settings.sidebarAutoBehaviorPush") }}</span>
+            </label>
+          </div>
+          <p class="item-desc">{{ t("settings.sidebarAutoBehaviorDesc") }}</p>
+        </UiCard>
+        </section>
+
+        <section
+          v-if="isLoggedIn && activeSection === 'ai'"
+          id="settings-panel-ai"
+          class="settings-section"
+          role="tabpanel"
+          aria-labelledby="settings-tab-ai"
+        >
+
+        <UiCard as="div" class="settings-item" compact>
           <label class="item-title" for="ai-model-id"><i class="fa-solid fa-wand-magic-sparkles"></i>{{ t("settings.aiModelTitle") }}</label>
           <select id="ai-model-id" v-model="aiModelId" class="text-input" required>
             <option v-for="model in aiModels" :key="model.id" :value="model.id">
@@ -222,27 +405,69 @@ onMounted(loadSettings);
             </div>
           </div>
         </UiCard>
+        </section>
 
-        <UiCard as="div" class="settings-item" compact>
-          <label class="item-title" for="profile-cover-url"><i class="fa-regular fa-image"></i>{{ t("settings.coverUrl") }}</label>
-          <input
-            id="profile-cover-url"
-            v-model.trim="profileCoverUrl"
-            class="text-input"
-            type="url"
-            :placeholder="t('settings.coverPlaceholder')"
-          />
-          <p class="item-desc">{{ t("settings.coverDesc") }}</p>
-          <div class="cover-actions">
-            <button type="button" class="minor-btn" @click="clearCoverUrl">
-              <i class="fa-solid fa-eraser"></i>
-              {{ t("settings.clearCover") }}
-            </button>
+        <section
+          v-if="isLoggedIn && activeSection === 'account'"
+          id="settings-panel-data"
+          class="settings-section"
+          role="tabpanel"
+          aria-labelledby="settings-tab-account"
+        >
+
+        <UiCard as="div" class="settings-item personal-export-card" compact>
+          <div class="item-title">
+            <i class="fa-solid fa-file-export"></i>{{ t("settings.personalExportTitle") }}
           </div>
-          <div class="cover-preview" :style="profileCoverUrl ? { backgroundImage: `url(${profileCoverUrl})` } : {}">
-            <div class="preview-tip"><i class="fa-solid fa-panorama"></i>{{ t("common.preview") }}</div>
-          </div>
+          <p class="item-desc">{{ t("settings.personalExportDesc") }}</p>
+          <ul class="personal-export-contents">
+            <li>{{ t("settings.personalExportProfile") }}</li>
+          </ul>
+          <p class="item-desc">
+            {{ exportStatus?.isUnlimited ? t("settings.personalExportUnlimited") : t("settings.personalExportLimit") }}
+          </p>
+          <p v-if="exportStatus && !exportStatus.canExport && nextExportTime" class="export-cooldown">
+            <i class="fa-regular fa-clock"></i>
+            {{
+              exportStatus.restrictionReason === "registration_wait"
+                ? t("settings.personalExportRegistrationWait", { time: nextExportTime })
+                : t("settings.personalExportNext", { time: nextExportTime })
+            }}
+          </p>
+          <button
+            type="button"
+            class="minor-btn export-btn"
+            :disabled="exporting || exportStatus?.canExport === false"
+            @click="exportPersonalData"
+          >
+            <i class="fa-solid fa-download"></i>
+            {{ exporting ? t("settings.personalExportPreparing") : t("settings.personalExportButton") }}
+          </button>
+          <p v-if="exportError" class="state-tip error">
+            <i class="fa-solid fa-circle-exclamation"></i>{{ exportError }}
+          </p>
         </UiCard>
+
+        <UiCard as="div" class="settings-item account-deletion-card" compact>
+          <div class="item-title account-deletion-title">
+            <i class="fa-solid fa-user-xmark"></i>{{ t("settings.accountDeletionTitle") }}
+          </div>
+          <p class="item-desc">
+            {{ t("settings.accountDeletionDesc") }}
+            <RouterLink to="/system/privacy-policy">{{ t("auth.privacyPolicy") }}</RouterLink>{{ t("settings.accountDeletionEnd") }}
+          </p>
+          <p class="account-deletion-unavailable">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>
+              {{ t("settings.accountDeletionUnavailable") }}
+              <a href="mailto:i@hiac.me">i@hiac.me</a>{{ t("settings.accountDeletionEnd") }}
+            </span>
+          </p>
+          <button type="button" class="minor-btn account-deletion-btn" disabled>
+            <i class="fa-solid fa-user-xmark"></i>{{ t("settings.accountDeletionButton") }}
+          </button>
+        </UiCard>
+        </section>
 
         <div class="actions">
           <button type="button" class="save-btn" :disabled="saving" @click="submitSettings">

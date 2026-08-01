@@ -7,7 +7,7 @@ import { buildRouter } from "./routes.js";
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ exposedHeaders: ["Content-Disposition"] }));
 app.use(express.json({ limit: "50mb" }));
 
 app.use("/api", async (req, res, next) => {
@@ -44,6 +44,5 @@ bootstrap().catch((err) => {
   console.error("[api] bootstrap failed:", err);
   process.exit(1);
 });
-
 
 

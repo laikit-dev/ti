@@ -189,7 +189,8 @@ a i {
 
 .luogu-markdown .code-line {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: calc(var(--code-line-number-width, 2ch) + 23px) minmax(0, 1fr);
+  column-gap: 10px;
   align-items: baseline;
   min-height: 20px;
 }
@@ -198,12 +199,12 @@ a i {
   color: var(--app-text-soft);
   text-align: right;
   padding: 0 10px 0 12px;
-  min-width: 4ch;
+  width: 100%;
+  min-width: 0;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   user-select: none;
   border-right: 1px solid var(--app-border);
-  margin-right: 10px;
 }
 
 .luogu-markdown .line-content {

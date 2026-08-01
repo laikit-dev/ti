@@ -8,6 +8,12 @@ import { clearLocalUser, loadLocalUser, type AuthUser } from "../api/auth";
 import { useAppLocale } from "../i18n";
 import type { AppLocale } from "../i18n/messages";
 import { setThemeMode, nextThemeMode, useThemeMode } from "../theme/useTheme";
+import {
+  readSidebarAutoBehavior,
+  SIDEBAR_AUTO_BEHAVIOR_CHANGE_EVENT,
+  SIDEBAR_AUTO_BEHAVIOR_STORAGE_KEY,
+  type SidebarAutoBehavior
+} from "../utils/sidebarPreferences";
 
 interface LayoutProps {
   title?: string;
@@ -26,6 +32,11 @@ interface NavItem {
   title: string;
 }
 
+interface BreadcrumbItem {
+  label: string;
+  to?: string;
+}
+
 const props = withDefaults(defineProps<LayoutProps>(), {
   title: "",
   subtitle: "",
@@ -39,8 +50,13 @@ const props = withDefaults(defineProps<LayoutProps>(), {
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
-const sidebarCollapsed = ref(true);
-const manualToggle = ref(false);
+const SIDEBAR_PREFERENCE_KEY = "ti.sidebar.preference";
+type SidebarPreference = "auto" | "collapsed" | "expanded";
+
+const initialSidebarPreference = readSidebarPreference();
+const sidebarPreference = ref<SidebarPreference>(initialSidebarPreference);
+const sidebarAutoBehavior = ref<SidebarAutoBehavior>(readSidebarAutoBehavior());
+const sidebarCollapsed = ref(initialSidebarPreference !== "expanded");
 const mobileMenuOpen = ref(false);
 const currentUser = ref<AuthUser | null>(null);
 
@@ -89,34 +105,103 @@ const pageDocumentTitle = computed(() => {
   return suffix;
 });
 
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  const labels = String(props.subtitle ?? "")
+    .split(/\s*\/\s*/)
+    .map((label) => label.trim())
+    .filter(Boolean);
+  const lastIndex = labels.length - 1;
+
+  return labels.map((label, index) => {
+    if (index === lastIndex) return { label };
+    if (index === 0) return { label, to: "/" };
+    if (index === 1 && route.path.startsWith("/problemset")) {
+      return { label, to: "/problemset" };
+    }
+    return { label };
+  });
+});
+
 const isLoggedIn = computed(() => !!currentUser.value);
 const isAdmin = computed(() => Boolean(currentUser.value?.isAdmin));
 const avatarUrl = computed(() => currentUser.value?.avatarUrl ?? "");
+const sidebarPreferenceText = computed(() => {
+  if (sidebarPreference.value === "collapsed") return t("layout.sidebarPreferenceCollapsed");
+  if (sidebarPreference.value === "expanded") return t("layout.sidebarPreferenceExpanded");
+  return t("layout.sidebarPreferenceAuto");
+});
+const sidebarPreferenceTitle = computed(() =>
+  `${t("layout.sidebarPreferenceLabel")}: ${sidebarPreferenceText.value}`
+);
+const sidebarPreferenceIcon = computed(() => {
+  if (sidebarPreference.value === "collapsed") return "fa-solid fa-angles-right";
+  if (sidebarPreference.value === "expanded") return "fa-solid fa-angles-left";
+  return "fa-solid fa-arrows-left-right";
+});
 
 function refreshUser() {
   currentUser.value = loadLocalUser();
 }
 
+function readSidebarPreference(): SidebarPreference {
+  try {
+    const value = localStorage.getItem(SIDEBAR_PREFERENCE_KEY);
+    if (value === "auto" || value === "collapsed" || value === "expanded") return value;
+  } catch {
+    // Keep the default automatic behavior when local storage is unavailable.
+  }
+  return "auto";
+}
+
+function applySidebarPreference(preference: SidebarPreference) {
+  sidebarPreference.value = preference;
+  sidebarCollapsed.value = preference !== "expanded";
+}
+
+function saveSidebarPreference(preference: SidebarPreference) {
+  applySidebarPreference(preference);
+  try {
+    localStorage.setItem(SIDEBAR_PREFERENCE_KEY, preference);
+  } catch {
+    // The in-memory preference still applies for the current page.
+  }
+}
+
+function handleStorage(event: StorageEvent) {
+  if (event.key === SIDEBAR_PREFERENCE_KEY || event.key === null) {
+    applySidebarPreference(readSidebarPreference());
+  }
+  if (event.key === SIDEBAR_AUTO_BEHAVIOR_STORAGE_KEY || event.key === null) {
+    sidebarAutoBehavior.value = readSidebarAutoBehavior();
+  }
+  if (event.key === "ti.user" || event.key === null) {
+    refreshUser();
+  }
+}
+
+function handleSidebarAutoBehaviorChange(event: Event) {
+  sidebarAutoBehavior.value = (event as CustomEvent<SidebarAutoBehavior>).detail;
+}
+
 function handleMouseEnter() {
-  if (sidebarCollapsed.value && !manualToggle.value) {
+  if (sidebarCollapsed.value && sidebarPreference.value === "auto") {
     sidebarCollapsed.value = false;
   }
 }
 
 function handleMouseLeave() {
-  if (!sidebarCollapsed.value && !manualToggle.value) {
+  if (!sidebarCollapsed.value && sidebarPreference.value === "auto") {
     sidebarCollapsed.value = true;
   }
 }
 
-function handleManualCollapse() {
-  manualToggle.value = true;
-  sidebarCollapsed.value = true;
-}
-
-function handleManualExpand() {
-  manualToggle.value = true;
-  sidebarCollapsed.value = false;
+function cycleSidebarPreference() {
+  const nextPreference: Record<SidebarPreference, SidebarPreference> = {
+    auto: "collapsed",
+    collapsed: "expanded",
+    expanded: "auto"
+  };
+  saveSidebarPreference(nextPreference[sidebarPreference.value]);
 }
 
 function toggleMobileMenu() {
@@ -169,11 +254,14 @@ function handleLocaleChange(event: Event) {
 
 onMounted(() => {
   refreshUser();
-  window.addEventListener("storage", refreshUser);
+  applySidebarPreference(readSidebarPreference());
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(SIDEBAR_AUTO_BEHAVIOR_CHANGE_EVENT, handleSidebarAutoBehaviorChange);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("storage", refreshUser);
+  window.removeEventListener("storage", handleStorage);
+  window.removeEventListener(SIDEBAR_AUTO_BEHAVIOR_CHANGE_EVENT, handleSidebarAutoBehaviorChange);
 });
 
 watch(
@@ -186,7 +274,13 @@ watch(
 </script>
 
 <template>
-  <div class="ti" :class="{ 'mobile-nav-open': mobileMenuOpen }">
+  <div
+    class="ti"
+    :class="{
+      'mobile-nav-open': mobileMenuOpen,
+      'sidebar-auto-overlay': sidebarPreference === 'auto' && sidebarAutoBehavior === 'overlay'
+    }"
+  >
     <!-- Mobile backdrop -->
     <div v-if="mobileMenuOpen" class="mobile-backdrop" @click="closeMobileMenu"></div>
 
@@ -236,9 +330,12 @@ watch(
       <button
         type="button"
         class="nav-toggle"
-        @click="sidebarCollapsed ? handleManualExpand() : handleManualCollapse()"
+        :title="sidebarPreferenceTitle"
+        :aria-label="sidebarPreferenceTitle"
+        @click="cycleSidebarPreference"
       >
-        <div class="toggle-icon">{{ sidebarCollapsed ? "→" : "←" }}</div>
+        <i class="toggle-icon" :class="sidebarPreferenceIcon" aria-hidden="true"></i>
+        <span v-show="!sidebarCollapsed || mobileMenuOpen" class="toggle-text">{{ sidebarPreferenceText }}</span>
       </button>
     </aside>
 
@@ -253,7 +350,21 @@ watch(
           >
             <i class="fa-solid fa-bars"></i>
           </button>
-          <div class="crumb">{{ props.subtitle }}</div>
+          <nav v-if="breadcrumbItems.length" class="crumb" :aria-label="t('layout.breadcrumb')">
+            <template v-for="(item, index) in breadcrumbItems" :key="`${item.label}-${index}`">
+              <span v-if="index > 0" class="crumb-separator" aria-hidden="true">/</span>
+              <RouterLink v-if="item.to" :to="item.to" class="crumb-link">
+                {{ item.label }}
+              </RouterLink>
+              <span
+                v-else
+                class="crumb-current"
+                :aria-current="index === breadcrumbItems.length - 1 ? 'page' : undefined"
+              >
+                {{ item.label }}
+              </span>
+            </template>
+          </nav>
         </div>
 
         <div class="top-actions">
@@ -306,6 +417,14 @@ watch(
 
             <template v-else>
               <div class="guest-actions">
+                <RouterLink
+                  to="/user/_me/settings"
+                  class="guest-settings-link top-control"
+                  :title="t('layout.settings')"
+                  :aria-label="t('layout.settings')"
+                >
+                  <i class="fa-solid fa-gear" aria-hidden="true"></i>
+                </RouterLink>
                 <RouterLink to="/auth/login" class="guest-link top-control">{{ t("layout.loginOrRegister") }}</RouterLink>
               </div>
             </template>
