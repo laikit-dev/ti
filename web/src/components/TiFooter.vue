@@ -45,9 +45,9 @@ onMounted(async () => {
           <a href="https://ti.luogu.me" target="_blank" rel="noreferrer" class="footer-link">ti.luogu.me</a>
         </p>
         <p class="group">
-          <a href="https://github.com/quanac-lcx/ti" target="_blank" rel="noreferrer" class="footer-link">
+          <a href="https://github.com/laikit-dev/ti" target="_blank" rel="noreferrer" class="footer-link">
             <i class="fab fa-github"></i>
-            <span>quanac-lcx/ti</span>
+            <span>laikit-dev/ti</span>
           </a>
         </p>
         <p v-if="legalLinks.length > 0" class="group">
