@@ -41,6 +41,7 @@ function toPublicUser(row) {
     aiModelId: normalizeAiModelId(row.ai_model_id),
     submissionAnalysisMode: normalizeSubmissionAnalysisMode(row.submission_analysis_mode, "wrong_only"),
     autosaveIntervalSeconds: normalizeAutosaveIntervalSeconds(row.autosave_interval_seconds, 30),
+    highlighterEnabled: Boolean(row.highlighter_enabled ?? 1),
     createdAt: row.created_at
   };
 }
@@ -1045,7 +1046,7 @@ async function getUserByHeader(req) {
   const uid = normalizeUid(req.header("x-user-uid"));
   if (!uid) return null;
   const [rows] = await dbPool.query(
-    "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, is_admin, is_banned, records_public, created_at FROM users WHERE uid = ? LIMIT 1",
+    "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, highlighter_enabled, is_admin, is_banned, records_public, created_at FROM users WHERE uid = ? LIMIT 1",
     [uid]
   );
   if (!Array.isArray(rows) || rows.length === 0) return null;
@@ -1697,6 +1698,7 @@ export function buildRouter() {
         profileCoverUrl: String(user.profile_cover_url ?? ""),
         submissionAnalysisMode: normalizeSubmissionAnalysisMode(user.submission_analysis_mode, "wrong_only"),
         autosaveIntervalSeconds: normalizeAutosaveIntervalSeconds(user.autosave_interval_seconds, 30),
+        highlighterEnabled: Boolean(user.highlighter_enabled),
         aiModelId: aiModel?.id || aiConfig.defaultModelId
       },
       user: toPublicUser(user)
@@ -1715,6 +1717,7 @@ export function buildRouter() {
       req.body?.autosaveIntervalSeconds,
       normalizeAutosaveIntervalSeconds(user.autosave_interval_seconds, 30)
     );
+    const highlighterEnabled = parseBooleanInput(req.body?.highlighterEnabled, Boolean(user.highlighter_enabled));
     const aiConfig = await getAiConfig();
     const requestedAiModelId = normalizeAiModelId(req.body?.aiModelId);
     const availableModel = requestedAiModelId ? pickAiModel(aiConfig, requestedAiModelId) : null;
@@ -1726,12 +1729,12 @@ export function buildRouter() {
     }
 
     await dbPool.query(
-      "UPDATE users SET records_public = ?, profile_cover_url = ?, submission_analysis_mode = ?, autosave_interval_seconds = ?, ai_model_id = ? WHERE id = ?",
-      [recordsPublic ? 1 : 0, profileCoverUrl, submissionAnalysisMode, autosaveIntervalSeconds, aiConfig.models.length > 0 ? requestedAiModelId : "", Number(user.id)]
+      "UPDATE users SET records_public = ?, profile_cover_url = ?, submission_analysis_mode = ?, autosave_interval_seconds = ?, highlighter_enabled = ?, ai_model_id = ? WHERE id = ?",
+      [recordsPublic ? 1 : 0, profileCoverUrl, submissionAnalysisMode, autosaveIntervalSeconds, highlighterEnabled ? 1 : 0, aiConfig.models.length > 0 ? requestedAiModelId : "", Number(user.id)]
     );
 
     const [rows] = await dbPool.query(
-      "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, is_admin, is_banned, records_public, created_at FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, highlighter_enabled, is_admin, is_banned, records_public, created_at FROM users WHERE id = ? LIMIT 1",
       [Number(user.id)]
     );
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -1745,6 +1748,7 @@ export function buildRouter() {
         profileCoverUrl: String(rows[0].profile_cover_url ?? ""),
         submissionAnalysisMode: normalizeSubmissionAnalysisMode(rows[0].submission_analysis_mode, "wrong_only"),
         autosaveIntervalSeconds: normalizeAutosaveIntervalSeconds(rows[0].autosave_interval_seconds, 30),
+        highlighterEnabled: Boolean(rows[0].highlighter_enabled),
         aiModelId: resolvedAiModel?.id || aiConfig.defaultModelId
       },
       user: toPublicUser(rows[0])
@@ -3538,7 +3542,7 @@ export function buildRouter() {
 
       if (includeUsers) {
         const [userRows] = await dbPool.query(
-          "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, oauth_provider, oauth_subject, is_admin, is_banned, records_public, created_at FROM users ORDER BY id ASC"
+          "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, highlighter_enabled, oauth_provider, oauth_subject, is_admin, is_banned, records_public, created_at FROM users ORDER BY id ASC"
         );
         backup.data.users = userRows.map((row) => ({
           uid: String(row.uid ?? ""),
@@ -3550,6 +3554,7 @@ export function buildRouter() {
           aiModelId: row.ai_model_id ? String(row.ai_model_id) : "",
           submissionAnalysisMode: normalizeSubmissionAnalysisMode(row.submission_analysis_mode, "wrong_only"),
           autosaveIntervalSeconds: normalizeAutosaveIntervalSeconds(row.autosave_interval_seconds, 30),
+          highlighterEnabled: Boolean(row.highlighter_enabled ?? 1),
           oauthProvider: row.oauth_provider ? String(row.oauth_provider) : null,
           oauthSubject: row.oauth_subject ? String(row.oauth_subject) : null,
           isAdmin: Boolean(row.is_admin),
@@ -3799,8 +3804,8 @@ export function buildRouter() {
       if (restoreUsers && Array.isArray(backup.data.users)) {
         for (const u of backup.data.users) {
           await connection.query(
-            `INSERT INTO users (uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, oauth_provider, oauth_subject, is_admin, is_banned, records_public)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO users (uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, highlighter_enabled, oauth_provider, oauth_subject, is_admin, is_banned, records_public)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                name = VALUES(name),
                email = VALUES(email),
@@ -3810,6 +3815,7 @@ export function buildRouter() {
                ai_model_id = VALUES(ai_model_id),
                submission_analysis_mode = VALUES(submission_analysis_mode),
                autosave_interval_seconds = VALUES(autosave_interval_seconds),
+               highlighter_enabled = VALUES(highlighter_enabled),
                oauth_provider = VALUES(oauth_provider),
                oauth_subject = VALUES(oauth_subject),
                is_admin = VALUES(is_admin),
@@ -3825,6 +3831,7 @@ export function buildRouter() {
               String(u.aiModelId ?? ""),
               normalizeSubmissionAnalysisMode(u.submissionAnalysisMode, "wrong_only"),
               normalizeAutosaveIntervalSeconds(u.autosaveIntervalSeconds, 30),
+              u.highlighterEnabled === false ? 0 : 1,
               u.oauthProvider || null,
               u.oauthSubject || null,
               u.isAdmin ? 1 : 0,
