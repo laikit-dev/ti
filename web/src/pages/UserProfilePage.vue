@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { getUserByUid, loadLocalUser, type AuthUser } from "../api/auth";
+import { getUserByUid, loadLocalUser, type AuthUser, type PublicUserProfile } from "../api/auth";
 import UiCard from "../components/UiCard.vue";
 import { problemsetApi, type ProblemsetSummary } from "../api/problemset";
 import { fetchActiveExam, fetchUserSubmissions, type SubmissionRecord } from "../api/submission";
@@ -16,7 +16,7 @@ const router = useRouter();
 const { t } = useI18n();
 
 const currentUser = ref<AuthUser | null>(null);
-const profile = ref<AuthUser | null>(null);
+const profile = ref<PublicUserProfile | null>(null);
 const activeExam = ref<SubmissionRecord | null>(null);
 const submissions = ref<SubmissionRecord[]>([]);
 const userProblemsets = ref<ProblemsetSummary[]>([]);

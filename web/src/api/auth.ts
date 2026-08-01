@@ -20,6 +20,11 @@ export interface AuthUser {
   createdAt: string;
 }
 
+export type PublicUserProfile = Pick<
+  AuthUser,
+  "uid" | "username" | "avatarUrl" | "profileCoverUrl" | "bio" | "isAdmin" | "isBanned" | "recordsPublic" | "createdAt"
+>;
+
 export interface PersonalExportStatus {
   canExport: boolean;
   lastExportedAt: string | null;
@@ -31,7 +36,7 @@ export interface PersonalExportStatus {
 }
 
 interface UserResponse {
-  user: AuthUser;
+  user: PublicUserProfile;
 }
 
 interface MySettingsResponse {
@@ -119,7 +124,7 @@ export function clearLocalUser() {
   localStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
 }
 
-export async function getUserByUid(uid: string): Promise<AuthUser> {
+export async function getUserByUid(uid: string): Promise<PublicUserProfile> {
   const result = await apiGet<UserResponse>(`/api/users/${encodeURIComponent(uid)}`);
   return result.user;
 }
