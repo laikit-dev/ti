@@ -48,6 +48,46 @@
   color: var(--app-warning-text);
 }
 
+.settings-section {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 16px;
+}
+
+.settings-tabs button {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-tabs button:hover {
+  background: var(--app-bg-muted);
+}
+
+.settings-tabs button.active {
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
 .settings-item .ti-card__body {
   display: grid;
   gap: 10px;
@@ -169,6 +209,68 @@
   color: var(--app-text);
 }
 
+.minor-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.personal-export-contents {
+  margin: 0;
+  padding-left: 22px;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.export-cooldown {
+  width: fit-content;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: var(--app-warning-soft);
+  color: var(--app-warning-text);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.export-btn {
+  width: fit-content;
+}
+
+.account-deletion-card {
+  border-left: 4px solid var(--app-danger);
+}
+
+.account-deletion-title {
+  color: var(--app-danger);
+}
+
+.account-deletion-card a {
+  color: var(--app-primary);
+}
+
+.account-deletion-unavailable {
+  width: fit-content;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.account-deletion-btn {
+  width: fit-content;
+  border-color: var(--app-danger);
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
 .cover-preview {
   margin-top: 4px;
   width: min(100%, 720px);
@@ -241,6 +343,12 @@
 
   .settings-section {
     gap: 10px;
+  }
+
+  .settings-tabs button {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 13px;
   }
 
   .setting-row {

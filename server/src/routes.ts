@@ -2,10 +2,11 @@
 import express from "express";
 import { randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from "node:crypto";
 import { dbPool, pingDb } from "./db.js";
-import { pingRedis, redis } from "./redis.js";
+import { consumeTemporaryValue, pingRedis, setTemporaryValue } from "./redis.js";
 import { buildGravatarUrl, normalizeEmail } from "./auth.js";
 import { env } from "./env.js";
 import { parseQuestionConfig } from "./questionConfigParser.js";
+import { buildPersonalExportPdf } from "./personalExport.js";
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
@@ -1755,6 +1756,225 @@ export function buildRouter() {
     });
   });
 
+  router.get("/users/_me/export-status", async (req, res) => {
+    const user = await requireUser(req, res);
+    if (!user) return;
+    const [rows] = await dbPool.query(
+      `
+        SELECT
+          created_at,
+          last_data_export_at,
+          CASE
+            WHEN last_data_export_at IS NULL THEN DATE_ADD(created_at, INTERVAL 5 DAY)
+            ELSE GREATEST(DATE_ADD(created_at, INTERVAL 5 DAY), DATE_ADD(last_data_export_at, INTERVAL 5 DAY))
+          END AS next_available_at,
+          IF(
+            NOW() >= DATE_ADD(created_at, INTERVAL 5 DAY)
+              AND (last_data_export_at IS NULL OR NOW() >= DATE_ADD(last_data_export_at, INTERVAL 5 DAY)),
+            1,
+            0
+          ) AS can_export,
+          IF(
+            NOW() < DATE_ADD(created_at, INTERVAL 5 DAY),
+            'registration_wait',
+            IF(last_data_export_at IS NOT NULL AND NOW() < DATE_ADD(last_data_export_at, INTERVAL 5 DAY), 'cooldown', NULL)
+          ) AS restriction_reason
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [Number(user.id)]
+    );
+    const status = Array.isArray(rows) && rows.length > 0 ? rows[0] : {};
+    const isUnlimited = Boolean(user.is_admin);
+    return res.json({
+      canExport: isUnlimited || Boolean(status.can_export),
+      lastExportedAt: status.last_data_export_at ?? null,
+      nextAvailableAt: isUnlimited ? null : status.next_available_at ?? null,
+      cooldownDays: isUnlimited ? 0 : 5,
+      minimumAccountAgeDays: isUnlimited ? 0 : 5,
+      restrictionReason: isUnlimited ? null : status.restriction_reason ?? null,
+      isUnlimited
+    });
+  });
+
+  router.post("/users/_me/export", async (req, res) => {
+    const user = await requireUser(req, res);
+    if (!user) return;
+
+    const connection = await dbPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [userRows] = await connection.query(
+        `
+          SELECT
+            id, uid, name, email, avatar_url, profile_cover_url, bio, records_public, created_at,
+            last_data_export_at,
+            CASE
+              WHEN last_data_export_at IS NULL THEN DATE_ADD(created_at, INTERVAL 5 DAY)
+              ELSE GREATEST(DATE_ADD(created_at, INTERVAL 5 DAY), DATE_ADD(last_data_export_at, INTERVAL 5 DAY))
+            END AS next_available_at,
+            IF(
+              NOW() >= DATE_ADD(created_at, INTERVAL 5 DAY)
+                AND (last_data_export_at IS NULL OR NOW() >= DATE_ADD(last_data_export_at, INTERVAL 5 DAY)),
+              1,
+              0
+            ) AS can_export,
+            IF(NOW() < DATE_ADD(created_at, INTERVAL 5 DAY), 1, 0) AS registration_wait,
+            GREATEST(
+              0,
+              TIMESTAMPDIFF(
+                SECOND,
+                NOW(),
+                CASE
+                  WHEN last_data_export_at IS NULL THEN DATE_ADD(created_at, INTERVAL 5 DAY)
+                  ELSE GREATEST(DATE_ADD(created_at, INTERVAL 5 DAY), DATE_ADD(last_data_export_at, INTERVAL 5 DAY))
+                END
+              )
+            ) AS retry_after_seconds
+          FROM users
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [Number(user.id)]
+      );
+      if (!Array.isArray(userRows) || userRows.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({ error: "user not found" });
+      }
+      const exportUser = userRows[0];
+      if (!user.is_admin && !exportUser.can_export) {
+        await connection.rollback();
+        const retryAfterSeconds = Math.max(1, Number(exportUser.retry_after_seconds ?? 1));
+        res.setHeader("Retry-After", String(retryAfterSeconds));
+        return res.status(429).json({
+          error: exportUser.registration_wait
+            ? "账号注册满 5 天后才可以导出个人数据。"
+            : "个人数据每 5 天仅可导出一次。",
+          nextAvailableAt: exportUser.next_available_at,
+          retryAfterSeconds
+        });
+      }
+
+      const [problemsetRows] = await connection.query(
+        `
+          SELECT p.id, p.title, p.description, p.duration_minutes, p.problemset_type, p.created_at, COUNT(q.id) AS question_count
+          FROM problemsets p
+          LEFT JOIN questions q ON q.problemset_id = p.id
+          WHERE p.created_by_uid = ?
+          GROUP BY p.id, p.title, p.description, p.duration_minutes, p.problemset_type, p.created_at
+          ORDER BY p.created_at ASC, p.id ASC
+        `,
+        [String(exportUser.uid)]
+      );
+      const [questionRows] = await connection.query(
+        `
+          SELECT
+            q.id, q.problemset_id, q.question_index, q.question_type, q.group_title,
+            q.shared_material, q.stem, q.input_placeholder, q.options_json,
+            q.score, q.answer, q.analysis
+          FROM questions q
+          INNER JOIN problemsets p ON p.id = q.problemset_id
+          WHERE p.created_by_uid = ?
+          ORDER BY q.problemset_id ASC, q.question_index ASC
+        `,
+        [String(exportUser.uid)]
+      );
+      const [submissionRows] = await connection.query(
+        `
+          SELECT
+            s.id, s.problemset_id, COALESCE(p.title, '') AS problemset_title,
+            s.mode, s.status, s.score, s.max_score, s.started_at, s.submitted_at, s.created_at
+          FROM submissions s
+          LEFT JOIN problemsets p ON p.id = s.problemset_id
+          WHERE s.user_uid = ?
+          ORDER BY s.created_at ASC, s.id ASC
+        `,
+        [String(exportUser.uid)]
+      );
+
+      const exportedAt = new Date();
+      const questionsByProblemset = new Map();
+      for (const row of questionRows) {
+        const problemsetId = Number(row.problemset_id);
+        const options = safeJsonParse(row.options_json, []);
+        const question = {
+          id: Number(row.id),
+          index: Number(row.question_index),
+          type: String(row.question_type ?? ""),
+          groupTitle: String(row.group_title ?? ""),
+          sharedMaterial: String(row.shared_material ?? ""),
+          stem: String(row.stem ?? ""),
+          inputPlaceholder: String(row.input_placeholder ?? ""),
+          options: Array.isArray(options)
+            ? options.map((option) => ({ key: String(option?.key ?? ""), text: String(option?.text ?? "") }))
+            : [],
+          score: Number(row.score ?? 0),
+          answer: String(row.answer ?? ""),
+          analysis: String(row.analysis ?? "")
+        };
+        const questions = questionsByProblemset.get(problemsetId) ?? [];
+        questions.push(question);
+        questionsByProblemset.set(problemsetId, questions);
+      }
+      const pdf = await buildPersonalExportPdf({
+        user: {
+          id: Number(exportUser.id),
+          uid: String(exportUser.uid ?? ""),
+          name: String(exportUser.name ?? ""),
+          email: String(exportUser.email ?? ""),
+          avatarUrl: String(exportUser.avatar_url ?? ""),
+          profileCoverUrl: String(exportUser.profile_cover_url ?? ""),
+          bio: String(exportUser.bio ?? ""),
+          recordsPublic: Boolean(exportUser.records_public),
+          createdAt: exportUser.created_at
+        },
+        problemsets: problemsetRows.map((row) => ({
+          id: Number(row.id),
+          title: String(row.title ?? ""),
+          description: String(row.description ?? ""),
+          problemsetType: String(row.problemset_type ?? ""),
+          durationMinutes: Number(row.duration_minutes ?? 0),
+          questionCount: Number(row.question_count ?? 0),
+          createdAt: row.created_at,
+          questions: questionsByProblemset.get(Number(row.id)) ?? []
+        })),
+        submissions: submissionRows.map((row) => ({
+          id: Number(row.id),
+          problemsetId: Number(row.problemset_id),
+          problemsetTitle: String(row.problemset_title ?? ""),
+          mode: String(row.mode ?? ""),
+          status: String(row.status ?? ""),
+          score: Number(row.score ?? 0),
+          maxScore: Number(row.max_score ?? 0),
+          startedAt: row.started_at,
+          submittedAt: row.submitted_at,
+          createdAt: row.created_at
+        })),
+        exportedAt
+      });
+
+      await connection.query("UPDATE users SET last_data_export_at = NOW() WHERE id = ?", [Number(exportUser.id)]);
+      await connection.commit();
+
+      const datePart = exportedAt.toISOString().slice(0, 10);
+      const filename = `ti-personal-data-${String(exportUser.uid).replace(/[^A-Za-z0-9_-]/g, "_")}-${datePart}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", String(pdf.length));
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.send(pdf);
+    } catch (err) {
+      await connection.rollback();
+      // eslint-disable-next-line no-console
+      console.error("personal data export failed:", err);
+      return res.status(500).json({ error: "个人信息导出失败，请稍后重试。" });
+    } finally {
+      connection.release();
+    }
+  });
+
   router.get("/users/:uid", async (req, res) => {
     const uid = normalizeUid(req.params.uid);
     if (!uid) {
@@ -1833,8 +2053,11 @@ export function buildRouter() {
     const state = randomBytes(24).toString("hex");
     const returnTo = normalizeReturnTo(req.query?.returnTo);
     const webBaseUrl = resolveWebBaseUrl(req, req.query?.webBaseUrl);
-    await pingRedis();
-    await redis.set(`oauth:cpoauth:state:${state}`, JSON.stringify({ returnTo, webBaseUrl }), "EX", 600);
+    await setTemporaryValue(
+      `oauth:cpoauth:state:${state}`,
+      JSON.stringify({ returnTo, webBaseUrl }),
+      600
+    );
     return res.redirect(302, buildCpoauthAuthorizeUrl(config, state));
   });
 
@@ -1857,10 +2080,8 @@ export function buildRouter() {
       return res.redirect(302, loginCallbackUrl.toString());
     }
 
-    await pingRedis();
     const stateKey = `oauth:cpoauth:state:${state}`;
-    const statePayloadRaw = await redis.get(stateKey);
-    await redis.del(stateKey);
+    const statePayloadRaw = await consumeTemporaryValue(stateKey);
     if (!statePayloadRaw) {
       loginCallbackUrl.searchParams.set("error", "invalid_state");
       return res.redirect(302, loginCallbackUrl.toString());
@@ -1896,7 +2117,11 @@ export function buildRouter() {
       }
 
       const ticket = randomBytes(24).toString("hex");
-      await redis.set(`oauth:cpoauth:ticket:${ticket}`, JSON.stringify({ uid: user.uid, returnTo }), "EX", 120);
+      await setTemporaryValue(
+        `oauth:cpoauth:ticket:${ticket}`,
+        JSON.stringify({ uid: user.uid, returnTo }),
+        120
+      );
 
       loginCallbackUrl.searchParams.set("ticket", ticket);
       loginCallbackUrl.searchParams.set("returnTo", returnTo);
@@ -1913,10 +2138,8 @@ export function buildRouter() {
       return res.status(400).json({ error: "ticket is required" });
     }
 
-    await pingRedis();
     const key = `oauth:cpoauth:ticket:${ticket}`;
-    const payloadRaw = await redis.get(key);
-    await redis.del(key);
+    const payloadRaw = await consumeTemporaryValue(key);
     if (!payloadRaw) {
       return res.status(401).json({ error: "invalid or expired ticket" });
     }

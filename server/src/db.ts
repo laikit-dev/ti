@@ -89,6 +89,7 @@ export async function ensureUserSchema() {
     await ensureColumn(connection, "users", "is_banned", "TINYINT(1) NOT NULL DEFAULT 0");
     await ensureColumn(connection, "users", "records_public", "TINYINT(1) NOT NULL DEFAULT 1");
     await ensureColumn(connection, "users", "highlighter_enabled", "TINYINT(1) NOT NULL DEFAULT 1");
+    await ensureColumn(connection, "users", "last_data_export_at", "DATETIME NULL");
     await connection.query("ALTER TABLE users MODIFY COLUMN submission_analysis_mode VARCHAR(16) NOT NULL DEFAULT 'wrong_only'");
     await connection.query("ALTER TABLE users MODIFY COLUMN records_public TINYINT(1) NOT NULL DEFAULT 1");
 
