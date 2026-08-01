@@ -47,6 +47,20 @@ function toPublicUser(row) {
   };
 }
 
+function toPublicUserProfile(row) {
+  return {
+    uid: String(row.uid ?? ""),
+    username: String(row.name ?? ""),
+    avatarUrl: String(row.avatar_url ?? ""),
+    profileCoverUrl: String(row.profile_cover_url ?? ""),
+    bio: normalizeBio(row.bio),
+    isAdmin: Boolean(row.is_admin),
+    isBanned: Boolean(row.is_banned),
+    recordsPublic: Boolean(row.records_public),
+    createdAt: row.created_at
+  };
+}
+
 function normalizeSubmissionAnalysisMode(raw, fallback = "wrong_only") {
   const value = String(raw ?? "").trim().toLowerCase();
   if (value === "none" || value === "wrong_only" || value === "all") return value;
@@ -1681,11 +1695,9 @@ export function buildRouter() {
     }
   });
 
-  router.get("/users", async (_req, res) => {
-    const [rows] = await dbPool.query(
-      "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, is_admin, is_banned, records_public, created_at FROM users ORDER BY id ASC LIMIT 100"
-    );
-    res.json({ users: rows.map(toPublicUser) });
+  router.get("/users", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(404).json({ error: "not found" });
   });
 
   router.get("/users/_me/settings", async (req, res) => {
@@ -1981,13 +1993,13 @@ export function buildRouter() {
       return res.status(400).json({ error: "uid is required" });
     }
     const [rows] = await dbPool.query(
-      "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, is_admin, is_banned, records_public, created_at FROM users WHERE uid = ? LIMIT 1",
+      "SELECT uid, name, avatar_url, profile_cover_url, bio, is_admin, is_banned, records_public, created_at FROM users WHERE uid = ? LIMIT 1",
       [uid]
     );
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(404).json({ error: "user not found" });
     }
-    return res.json({ user: toPublicUser(rows[0]) });
+    return res.json({ user: toPublicUserProfile(rows[0]) });
   });
 
   router.get("/users/:uid/problemsets", async (req, res) => {
