@@ -317,6 +317,8 @@ This is an input question stem with Markdown and LaTeX support. This sample inte
       exam: "Timed exam",
       training: "Free practice",
       edit: "Edit problemset",
+      systemAuthor: "System",
+      viewAuthorProfile: "View {name}'s profile",
       questionCount: "Questions",
       duration: "Duration",
       tabs: {

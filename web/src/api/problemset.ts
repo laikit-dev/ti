@@ -34,6 +34,11 @@ export interface ProblemQuestion {
 
 export interface ProblemsetDetail {
   summary: ProblemsetSummary;
+  author: {
+    uid: string;
+    username: string;
+    avatarUrl: string;
+  };
   questions: ProblemQuestion[];
 }
 

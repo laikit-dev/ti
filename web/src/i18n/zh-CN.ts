@@ -312,6 +312,8 @@ C. 选项C
       exam: "限时测试",
       training: "自由练习",
       edit: "修改题目",
+      systemAuthor: "系统发布",
+      viewAuthorProfile: "查看 {name} 的用户主页",
       questionCount: "题目数量",
       duration: "测试时间",
       tabs: {

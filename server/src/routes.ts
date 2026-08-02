@@ -1375,7 +1375,21 @@ export function buildRouter() {
 
     const actor = await getUserByHeader(req);
     const [summaryRows] = await dbPool.query(
-      "SELECT id, title, description, duration_minutes, problemset_type, created_by_uid FROM problemsets WHERE id = ? LIMIT 1",
+      `
+        SELECT
+          p.id,
+          p.title,
+          p.description,
+          p.duration_minutes,
+          p.problemset_type,
+          p.created_by_uid,
+          author.name AS author_name,
+          author.avatar_url AS author_avatar_url
+        FROM problemsets p
+        LEFT JOIN users author ON author.uid = p.created_by_uid
+        WHERE p.id = ?
+        LIMIT 1
+      `,
       [problemsetId]
     );
     if (!Array.isArray(summaryRows) || summaryRows.length === 0) {
@@ -1401,6 +1415,11 @@ export function buildRouter() {
         durationHours: Number(summary.duration_minutes ?? 120) / 60,
         problemsetType: String(summary.problemset_type ?? "official_public"),
         createdByUid: String(summary.created_by_uid ?? "")
+      },
+      author: {
+        uid: String(summary.created_by_uid ?? ""),
+        username: String(summary.author_name ?? summary.created_by_uid ?? ""),
+        avatarUrl: String(summary.author_avatar_url ?? "")
       },
       questions: questionRows.map(toQuestion)
     });
