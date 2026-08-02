@@ -558,6 +558,10 @@
     box-shadow: none;
   }
 
+  .ti.sidebar-auto-overlay .side {
+    z-index: 200;
+  }
+
   .side.mobile-open {
     transform: translateX(0);
   }

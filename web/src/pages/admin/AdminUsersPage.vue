@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import {
   banUser,
   deleteUser,
+  downloadUserPersonalData,
   fetchAdminUsers,
   promoteUser,
   updateUser
@@ -18,6 +19,7 @@ const users = ref<AuthUser[]>([]);
 const loading = ref(false);
 const selected = ref<string[]>([]);
 const editingUid = ref("");
+const downloadingUid = ref("");
 
 const editForm = reactive({
   uid: "",
@@ -178,6 +180,27 @@ async function singleToggleBan(uid: string, banned: boolean) {
   }
 }
 
+async function downloadPersonalData(uid: string) {
+  if (downloadingUid.value) return;
+  downloadingUid.value = uid;
+  try {
+    const { blob, filename } = await downloadUserPersonalData(uid);
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    notifySuccess(t("admin.users.exported", { uid }));
+  } catch (err) {
+    notifyError(String((err as Error)?.message ?? err));
+  } finally {
+    downloadingUid.value = "";
+  }
+}
+
 onMounted(loadUsers);
 </script>
 
@@ -225,6 +248,10 @@ onMounted(loadUsers);
             <td>{{ item.isAdmin ? t("common.yes") : t("common.no") }}</td>
             <td>{{ item.isBanned ? t("common.yes") : t("common.no") }}</td>
             <td class="actions">
+              <button class="admin-btn" type="button" :disabled="Boolean(downloadingUid)" @click="downloadPersonalData(item.uid)">
+                <i class="fa-solid fa-download" aria-hidden="true"></i>
+                {{ downloadingUid === item.uid ? t("admin.users.exporting") : t("admin.users.exportData") }}
+              </button>
               <button class="admin-btn" type="button" @click="startEdit(item)">{{ t("common.edit") }}</button>
               <button class="admin-btn" type="button" @click="singlePromote(item.uid)">{{ item.isAdmin ? t("admin.users.demote") : t("admin.users.promote") }}</button>
               <button class="admin-btn" type="button" @click="singleToggleBan(item.uid, !item.isBanned)">
