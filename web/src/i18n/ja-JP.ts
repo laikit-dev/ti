@@ -342,20 +342,36 @@ export const jaJP = {
   admin: {
     ...enUS.admin,
     menu: "管理メニュー",
+    managementCenter: "管理センター",
+    menuHint: "コンテンツ、アクセス、システム設定",
+    backToSite: "問題セットに戻る",
     noPermission: "権限がありません",
+    sections: {
+      content: "コンテンツ管理",
+      access: "ユーザーとアクセス",
+      system: "サービスとシステム"
+    },
     nav: {
       users: "ユーザー管理",
       problemsets: "問題セット管理",
       questions: "問題管理",
-      oauth: "OAuth 設定",
+      services: "サービスと連携",
       systemPages: "システムページ",
       backup: "バックアップと復元"
+    },
+    navDescriptions: {
+      users: "アカウント、権限、利用停止",
+      problemsets: "問題セット情報と公開範囲",
+      questions: "問題内容と解答設定",
+      services: "OAuth、CDN、AI、管理トークン",
+      systemPages: "規約、お知らせ、カスタムページ",
+      backup: "データの出力、復元、移行"
     },
     titles: {
       users: "管理 / ユーザー",
       problemsets: "管理 / 問題セット",
       questions: "管理 / 問題",
-      oauth: "管理 / OAuth",
+      services: "管理 / サービスと連携",
       systemPages: "管理 / システムページ",
       backup: "管理 / バックアップと復元"
     },

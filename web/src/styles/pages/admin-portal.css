@@ -1,7 +1,7 @@
 .admin-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 
@@ -24,6 +24,56 @@
 
 .admin-notice {
   grid-column: 1 / -1;
+}
+
+.admin-nav {
+  position: sticky;
+  top: 16px;
+  padding: 12px;
+}
+
+.admin-nav-head {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 4px 4px 12px;
+  border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.admin-nav-brand-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
+
+.admin-nav-head p {
+  margin: 3px 0 0;
+  color: var(--app-text-soft);
+  font-size: 12px;
+}
+
+.admin-nav-toggle {
+  display: none;
+}
+
+.admin-nav-groups {
+  display: grid;
+  gap: 16px;
+  padding-top: 14px;
+}
+
+.admin-nav-group h4 {
+  margin: 0 8px 6px;
+  color: var(--app-text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .admin-head {
@@ -236,13 +286,54 @@
 }
 
 .admin-nav-link {
-  display: block;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 12px;
+  gap: 9px;
+  align-items: center;
   text-decoration: none;
   color: var(--app-text-muted);
-  border-radius: 4px;
-  padding: 8px 10px;
-  margin-top: 8px;
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 3px;
   border: 1px solid transparent;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.admin-nav-link-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--app-text-soft);
+  background: var(--app-bg-muted);
+}
+
+.admin-nav-link-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.admin-nav-link-copy strong {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.admin-nav-link-copy small {
+  overflow: hidden;
+  color: var(--app-text-soft);
+  font-size: 11px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-nav-link-arrow {
+  color: var(--app-text-soft);
+  font-size: 10px;
+  opacity: 0;
 }
 
 .admin-nav-link:hover {
@@ -250,9 +341,40 @@
   color: var(--app-text);
 }
 
+.admin-nav-link:hover .admin-nav-link-arrow,
+.admin-nav-link.active .admin-nav-link-arrow {
+  opacity: 1;
+}
+
 .admin-nav-link.active {
   border-color: var(--app-primary);
   background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+.admin-nav-link.active .admin-nav-link-icon {
+  color: #fff;
+  background: var(--app-primary);
+}
+
+.admin-nav-link.active .admin-nav-link-copy small {
+  color: var(--app-primary);
+  opacity: 0.78;
+}
+
+.admin-nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border-subtle);
+  color: var(--app-text-soft);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.admin-nav-back:hover {
   color: var(--app-primary);
 }
 
@@ -340,6 +462,19 @@
     grid-template-columns: 1fr;
   }
 
+  .admin-nav {
+    position: static;
+  }
+
+  .admin-nav-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .admin-nav-back {
+    grid-column: 1 / -1;
+  }
+
   .admin-system-page-grid,
   .admin-form-grid.two-col,
   .ai-model-grid {
@@ -354,6 +489,61 @@
 
   .admin-card {
     padding: 12px;
+  }
+
+  .admin-nav {
+    padding: 10px;
+  }
+
+  .admin-nav-head {
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 2px;
+    border-bottom: 0;
+  }
+
+  .admin-nav-brand-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .admin-nav-head > div p {
+    display: none;
+  }
+
+  .admin-nav-toggle {
+    grid-column: 1 / -1;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    border: 1px solid var(--app-border-subtle);
+    border-radius: 8px;
+    padding: 9px 10px;
+    color: var(--app-text-muted);
+    background: var(--app-bg-muted);
+    font: inherit;
+    text-align: left;
+  }
+
+  .admin-nav-toggle i {
+    font-size: 11px;
+    transition: transform 0.16s ease;
+  }
+
+  .admin-nav.is-open .admin-nav-toggle i {
+    transform: rotate(180deg);
+  }
+
+  .admin-nav-groups {
+    display: none;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding-top: 14px;
+  }
+
+  .admin-nav.is-open .admin-nav-groups {
+    display: grid;
   }
 
   .admin-head {
