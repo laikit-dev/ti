@@ -7,6 +7,7 @@ import { buildGravatarUrl, normalizeEmail } from "./auth.js";
 import { env } from "./env.js";
 import { parseQuestionConfig } from "./questionConfigParser.js";
 import { buildPersonalExportPdf } from "./personalExport.js";
+import { createPersonalDataExport } from "./personalDataExport.js";
 import { createSessionToken, readBearerSession } from "./session.js";
 
 function isEmail(value) {
@@ -1375,7 +1376,21 @@ export function buildRouter() {
 
     const actor = await getUserByHeader(req);
     const [summaryRows] = await dbPool.query(
-      "SELECT id, title, description, duration_minutes, problemset_type, created_by_uid FROM problemsets WHERE id = ? LIMIT 1",
+      `
+        SELECT
+          p.id,
+          p.title,
+          p.description,
+          p.duration_minutes,
+          p.problemset_type,
+          p.created_by_uid,
+          author.name AS author_name,
+          author.avatar_url AS author_avatar_url
+        FROM problemsets p
+        LEFT JOIN users author ON author.uid = p.created_by_uid
+        WHERE p.id = ?
+        LIMIT 1
+      `,
       [problemsetId]
     );
     if (!Array.isArray(summaryRows) || summaryRows.length === 0) {
@@ -1401,6 +1416,11 @@ export function buildRouter() {
         durationHours: Number(summary.duration_minutes ?? 120) / 60,
         problemsetType: String(summary.problemset_type ?? "official_public"),
         createdByUid: String(summary.created_by_uid ?? "")
+      },
+      author: {
+        uid: String(summary.created_by_uid ?? ""),
+        username: String(summary.author_name ?? summary.created_by_uid ?? ""),
+        avatarUrl: String(summary.author_avatar_url ?? "")
       },
       questions: questionRows.map(toQuestion)
     });
@@ -3523,6 +3543,45 @@ export function buildRouter() {
       return res.status(404).json({ error: "user not found" });
     }
     return res.json({ user: toPublicUser(rows[0]) });
+  });
+
+  router.post("/admin/users/:uid/export", async (req, res) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const targetUid = normalizeUid(req.params.uid);
+    if (!targetUid) {
+      return res.status(400).json({ error: "uid is required" });
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+      const [rows] = await connection.query(
+        `
+          SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, records_public, created_at
+          FROM users
+          WHERE uid = ?
+          LIMIT 1
+        `,
+        [targetUid]
+      );
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(404).json({ error: "user not found" });
+      }
+
+      const { pdf, filename } = await createPersonalDataExport(connection, rows[0]);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", String(pdf.length));
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.send(pdf);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("admin personal data export failed:", err);
+      return res.status(500).json({ error: "个人信息导出失败，请稍后重试。" });
+    } finally {
+      connection.release();
+    }
   });
 
   router.post("/admin/users/:uid/promote", async (req, res) => {

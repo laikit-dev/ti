@@ -57,7 +57,6 @@ const routes: RouteRecordRaw[] = [
       { path: "backup", component: AdminBackupPage }
     ]
   },
-  { path: "/web/admin", redirect: "/admin" },
   { path: "/:pathMatch(.*)*", component: NotFoundPage }
 ];
 

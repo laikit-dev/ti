@@ -424,6 +424,13 @@ onMounted(loadSettings);
             <li>{{ t("settings.personalExportProfile") }}</li>
           </ul>
           <p class="item-desc">
+            <a
+              href="https://s.luogu.me/f/d/qzcm/%E4%BF%9D%E5%AD%98%E7%AB%99%E6%9C%89%E9%A2%98%E6%95%B0%E6%8D%AE%E5%AF%BC%E5%87%BA%E7%A4%BA%E4%BE%8B.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ t("settings.personalExportExample") }}</a>
+          </p>
+          <p class="item-desc">
             {{ exportStatus?.isUnlimited ? t("settings.personalExportUnlimited") : t("settings.personalExportLimit") }}
           </p>
           <p v-if="exportStatus && !exportStatus.canExport && nextExportTime" class="export-cooldown">

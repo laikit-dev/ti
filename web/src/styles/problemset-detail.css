@@ -81,6 +81,58 @@
   min-width: 0;
 }
 
+.problemset-detail-page .author-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  color: var(--app-text);
+  text-decoration: none;
+}
+
+.problemset-detail-page a.author-card:hover {
+  border-color: var(--app-primary);
+}
+
+.problemset-detail-page a.author-card:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+.problemset-detail-page .author-card-static {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.problemset-detail-page .author-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--app-bg-muted);
+}
+
+.problemset-detail-page .author-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--app-primary);
+  font-size: 15px;
+}
+
+.problemset-detail-page .author-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.problemset-detail-page .author-link-icon {
+  color: var(--app-text-soft);
+  font-size: 12px;
+}
+
 .problemset-detail-page .tabs-card {
   padding: 10px 16px;
   display: flex;

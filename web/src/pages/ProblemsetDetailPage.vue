@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import TiLayout from "../layouts/TiLayout.vue";
 import { getMySettings, loadLocalUser } from "../api/auth";
@@ -528,6 +528,31 @@ watch([activeTab, selectedQuestionIndex, selectedSubmission], async () => {
                 {{ item.score }} {{ t("common.points") }} - {{ t("problemset.detail.submittedAt", { time: formatDate(item.submittedAt) }) }}
               </button>
             </div>
+          </div>
+
+          <RouterLink
+            v-if="detail.author.uid"
+            class="panel-card author-card"
+            :to="`/user/${encodeURIComponent(detail.author.uid)}`"
+            :aria-label="t('problemset.detail.viewAuthorProfile', { name: detail.author.username || detail.author.uid })"
+          >
+            <img
+              v-if="detail.author.avatarUrl"
+              class="author-avatar"
+              :src="detail.author.avatarUrl"
+              :alt="detail.author.username || detail.author.uid"
+            />
+            <span v-else class="author-avatar author-avatar-fallback" aria-hidden="true">
+              <i class="fa-solid fa-user"></i>
+            </span>
+            <strong class="author-name">{{ detail.author.username || detail.author.uid }}</strong>
+            <i class="fa-solid fa-chevron-right author-link-icon" aria-hidden="true"></i>
+          </RouterLink>
+          <div v-else class="panel-card author-card author-card-static">
+            <span class="author-avatar author-avatar-fallback" aria-hidden="true">
+              <i class="fa-solid fa-user-shield"></i>
+            </span>
+            <strong class="author-name">{{ t("problemset.detail.systemAuthor") }}</strong>
           </div>
 
           <div class="panel-card list-card">
