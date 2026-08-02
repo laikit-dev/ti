@@ -469,6 +469,7 @@ This is an input question stem with Markdown and LaTeX support. This sample inte
     personalExportTitle: "Export personal information",
     personalExportDesc: "The system creates one PDF containing all personal data and downloads it through your browser.",
     personalExportProfile: "Export the registration email, UID, username and account profile, submission history, and complete uploaded questions as a PDF.",
+    personalExportExample: "Example PDF",
     personalExportLimit: "Standard accounts can export after 5 days of registration, then once every 5 days.",
     personalExportUnlimited: "Administrator accounts are exempt from account-age and export-interval restrictions.",
     personalExportRegistrationWait: "Export available after the account is 5 days old: {time}",

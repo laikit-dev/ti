@@ -465,6 +465,7 @@ C. 选项C
     personalExportTitle: "导出个人信息",
     personalExportDesc: "系统会生成一份包含全部个人数据的 PDF 文档，并通过浏览器下载到本地。",
     personalExportProfile: "可将注册邮箱、UID、用户名及账号资料、做题记录，以及上传的完整题目导出为 PDF。",
+    personalExportExample: "示例PDF",
     personalExportLimit: "普通账号注册满 5 天后方可导出，之后每 5 天仅可导出一次。",
     personalExportUnlimited: "管理员账号不受注册时间和导出间隔限制。",
     personalExportRegistrationWait: "账号注册满 5 天后可导出：{time}",
