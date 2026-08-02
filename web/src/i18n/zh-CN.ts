@@ -488,20 +488,36 @@ C. 选项C
   admin: {
     subtitle: "保存站有题 / 管理后台",
     menu: "管理菜单",
+    managementCenter: "管理中心",
+    menuHint: "内容、权限与系统设置",
+    backToSite: "返回题库前台",
     noPermission: "权限不足",
+    sections: {
+      content: "内容管理",
+      access: "用户与访问",
+      system: "服务与系统"
+    },
     nav: {
       users: "用户管理",
       problemsets: "试卷管理",
       questions: "试题管理",
-      oauth: "OAuth 配置",
+      services: "服务与集成",
       systemPages: "系统页面",
       backup: "备份与还原"
+    },
+    navDescriptions: {
+      users: "账号、权限与封禁状态",
+      problemsets: "试卷信息与发布范围",
+      questions: "题目内容与答案配置",
+      services: "OAuth、CDN、AI 与管理令牌",
+      systemPages: "协议、公告与自定义页面",
+      backup: "导出、恢复与数据迁移"
     },
     titles: {
       users: "后台管理 / 用户",
       problemsets: "后台管理 / 试卷",
       questions: "后台管理 / 试题",
-      oauth: "后台管理 / OAuth",
+      services: "后台管理 / 服务与集成",
       systemPages: "后台管理 / 系统页面",
       backup: "后台管理 / 备份与还原"
     },

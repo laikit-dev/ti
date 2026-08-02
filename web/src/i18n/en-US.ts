@@ -493,20 +493,36 @@ This is an input question stem with Markdown and LaTeX support. This sample inte
   admin: {
     subtitle: "Luogu Saver Quiz / Admin",
     menu: "Admin menu",
+    managementCenter: "Admin Center",
+    menuHint: "Content, access, and system settings",
+    backToSite: "Back to problemsets",
     noPermission: "Insufficient permissions",
+    sections: {
+      content: "Content",
+      access: "Users & Access",
+      system: "Services & System"
+    },
     nav: {
       users: "Users",
       problemsets: "Problemsets",
       questions: "Questions",
-      oauth: "OAuth",
+      services: "Services & Integrations",
       systemPages: "System Pages",
       backup: "Backup & Restore"
+    },
+    navDescriptions: {
+      users: "Accounts, roles, and bans",
+      problemsets: "Problemset details and visibility",
+      questions: "Question content and answers",
+      services: "OAuth, CDN, AI, and admin tokens",
+      systemPages: "Policies, notices, and custom pages",
+      backup: "Export, restore, and migrate data"
     },
     titles: {
       users: "Admin / Users",
       problemsets: "Admin / Problemsets",
       questions: "Admin / Questions",
-      oauth: "Admin / OAuth",
+      services: "Admin / Services & Integrations",
       systemPages: "Admin / System Pages",
       backup: "Admin / Backup & Restore"
     },

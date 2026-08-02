@@ -8,12 +8,11 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-actions {
-  display: flex;
-  gap: 8px;
 .problemset-page .tabs,
 .problemset-page .toolbar-actions,
-.problemset-search-page .toolbar-
+.problemset-search-page .toolbar-actions {
+  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }

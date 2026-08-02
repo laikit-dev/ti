@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => {
   return {
     envDir: repoRoot,
     plugins: [vue()],
+    define: {
+      __INTLIFY_JIT_COMPILATION__: true,
+      __INTLIFY_DROP_MESSAGE_COMPILER__: false
+    },
     base: cdnBaseUrl || "/",
     server: {
       port: 5173,
