@@ -124,11 +124,23 @@ async function fetchConfigFromApi() {
     console.log(`[s3-upload] Fetching S3 config from admin API: ${url}`);
 
     try {
-        const response = await fetch(url, {
+        const sessionResponse = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/auth/admin-token/session`, {
+            method: 'POST',
             headers: {
-                'x-admin-uid': 'root',
-                'x-admin-token': adminToken,
+                'Content-Type': 'application/json',
             },
+            body: JSON.stringify({ token: adminToken }),
+        });
+        if (!sessionResponse.ok) {
+            console.warn(`[s3-upload] Admin session API returned ${sessionResponse.status}, falling back to env vars.`);
+            return null;
+        }
+        const sessionData = await sessionResponse.json();
+        const bearerToken = String(sessionData?.session?.token ?? '').trim();
+        if (!bearerToken) throw new Error('Admin session API returned no Bearer token');
+
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${bearerToken}` },
         });
 
         if (!response.ok) {

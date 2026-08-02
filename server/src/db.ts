@@ -150,15 +150,34 @@ export async function ensureUserSchema() {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS admin_tokens (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        token CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+        token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
         created_by_uid VARCHAR(32) NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        UNIQUE KEY uq_admin_tokens_token (token)
+        UNIQUE KEY uq_admin_tokens_token_hash (token_hash)
       )
     `);
-    await ensureColumn(connection, "admin_tokens", "token", "CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL");
-    await connection.query("ALTER TABLE admin_tokens MODIFY COLUMN token CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL");
+    await ensureColumn(connection, "admin_tokens", "token_hash", "CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL");
+    const [legacyTokenColumns] = await connection.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_tokens' AND COLUMN_NAME = 'token' LIMIT 1`
+    );
+    if (Array.isArray(legacyTokenColumns) && legacyTokenColumns.length > 0) {
+      await connection.query(
+        "UPDATE admin_tokens SET token_hash = CONVERT(token USING ascii) WHERE token_hash IS NULL AND token IS NOT NULL AND CHAR_LENGTH(token) = 64"
+      );
+      await connection.query(
+        "UPDATE admin_tokens SET token_hash = CONVERT(SHA2(token, 256) USING ascii) WHERE token_hash IS NULL AND token IS NOT NULL AND CHAR_LENGTH(token) <> 64"
+      );
+      await connection.query("ALTER TABLE admin_tokens MODIFY COLUMN token CHAR(64) NULL");
+      await connection.query("UPDATE admin_tokens SET token = NULL WHERE token IS NOT NULL");
+    }
+    await connection.query("ALTER TABLE admin_tokens MODIFY COLUMN token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL");
+    await ensureUniqueIndex(
+      connection,
+      "uq_admin_tokens_token_hash",
+      "CREATE UNIQUE INDEX uq_admin_tokens_token_hash ON admin_tokens (token_hash)"
+    );
     await ensureColumn(connection, "admin_tokens", "created_by_uid", "VARCHAR(32) NULL");
     await ensureColumn(connection, "admin_tokens", "created_at", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
 

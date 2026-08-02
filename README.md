@@ -16,6 +16,7 @@ DATABASE_PORT=3306
 DATABASE_NAME=luogu_ti
 DATABASE_USER=app
 DATABASE_PASSWORD=replace-with-a-long-random-password
+SESSION_SECRET=replace-with-at-least-32-random-characters
 ```
 
 The API reads `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, and `DATABASE_PASSWORD` directly. Redis and the API service use the private Docker network, so their host and ports do not need to be configured for normal deployment.
@@ -342,6 +343,7 @@ CPOAUTH_BASE_URL=https://auth.luogu.me
 | `PUBLIC_API_BASE_URL` | 后端对外公开 API 基础地址 | 分域部署时与 API 域名一致；同域 `/api` 反代时可留空 |
 | `WEB_BASE_URL` | 站点对外访问域名 | 建议写真实 HTTPS 域名 |
 | `CPOAUTH_BASE_URL` | CPOAuth 服务地址 | 默认 `https://auth.luogu.me` |
+| `SESSION_SECRET` | Bearer 会话签名密钥 | 生产环境必填，至少 32 个字符 |
 
 特别说明：
 
@@ -498,8 +500,8 @@ docker compose -f docker-compose.prod.yml exec mariadb mariadb -uapp -p"$MARIADB
 插入一条 32 位字母数字 token：
 
 ```sql
-INSERT INTO admin_tokens (token, created_by_uid)
-VALUES ('AbCdEfGhIjKlMnOpQrStUvWxYz123456', 'root');
+INSERT INTO admin_tokens (token_hash, created_by_uid)
+VALUES (SHA2('AbCdEfGhIjKlMnOpQrStUvWxYz123456', 256), 'root');
 ```
 
 然后访问：

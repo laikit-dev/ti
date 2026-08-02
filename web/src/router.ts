@@ -21,7 +21,6 @@ import AdminSystemPagesPage from "./pages/admin/AdminSystemPagesPage.vue";
 import AdminBackupPage from "./pages/admin/AdminBackupPage.vue";
 import { loadLocalUser } from "./api/auth";
 import { BANNED_ROUTE_PATH } from "./utils/authRedirect";
-import { readLocalUid } from "./utils/shared";
 
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: "/problemset" },
@@ -39,7 +38,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/user/_me",
     redirect: () => {
-      const uid = readLocalUid();
+      const uid = loadLocalUser()?.uid ?? "";
       return uid ? `/user/${uid}` : "/auth/login";
     }
   },

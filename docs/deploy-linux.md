@@ -17,6 +17,7 @@ DATABASE_PORT=3306
 DATABASE_NAME=luogu_ti
 DATABASE_USER=app
 DATABASE_PASSWORD=请替换为长随机密码
+SESSION_SECRET=请替换为至少32字符的随机密钥
 ```
 
 Redis 和 API 的主机、端口不需要填写：它们始终通过 Docker 内部网络连接。网站与 API 共用 `APP_PORT`，前端的 `/api` 请求会自动代理到 API 容器。
@@ -142,8 +143,8 @@ docker compose -f docker-compose.prod.yml exec mariadb mariadb -u"$DATABASE_USER
 ```
 
 ```sql
-INSERT INTO admin_tokens (token, created_by_uid)
-VALUES ('AbCdEfGhIjKlMnOpQrStUvWxYz123456', 'root');
+INSERT INTO admin_tokens (token_hash, created_by_uid)
+VALUES (SHA2('AbCdEfGhIjKlMnOpQrStUvWxYz123456', 256), 'root');
 ```
 
 登录地址：

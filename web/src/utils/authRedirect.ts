@@ -4,6 +4,7 @@ export const BANNED_ROUTE_PATH = "/auth/banned";
 
 const LOCAL_USER_KEY = "ti.user";
 const LOCAL_ADMIN_TOKEN_KEY = "ti.admin.token";
+const LOCAL_SESSION_KEY = "ti.session";
 
 interface StoredUserSnapshot {
   isBanned?: boolean;
@@ -42,6 +43,7 @@ export function handleForbiddenNavigation(message: unknown): string {
     try {
       markStoredUserAsBanned();
       localStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
+      localStorage.removeItem(LOCAL_SESSION_KEY);
     } catch { }
 
     if (typeof window !== "undefined" && window.location.pathname !== BANNED_ROUTE_PATH) {
@@ -53,6 +55,7 @@ export function handleForbiddenNavigation(message: unknown): string {
   try {
     localStorage.removeItem(LOCAL_USER_KEY);
     localStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
+    localStorage.removeItem(LOCAL_SESSION_KEY);
   } catch { }
 
   if (typeof window !== "undefined" && window.location.pathname !== "/auth/login") {

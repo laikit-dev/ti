@@ -1,12 +1,13 @@
 ﻿// @ts-nocheck
 import express from "express";
-import { randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from "node:crypto";
+import { randomBytes, createCipheriv, createDecipheriv, createHash, pbkdf2Sync } from "node:crypto";
 import { dbPool, pingDb } from "./db.js";
 import { consumeTemporaryValue, pingRedis, setTemporaryValue } from "./redis.js";
 import { buildGravatarUrl, normalizeEmail } from "./auth.js";
 import { env } from "./env.js";
 import { parseQuestionConfig } from "./questionConfigParser.js";
 import { buildPersonalExportPdf } from "./personalExport.js";
+import { createSessionToken, readBearerSession } from "./session.js";
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
@@ -321,12 +322,19 @@ function buildDefaultCallbackUrl(req) {
   return `${resolvePublicApiBaseUrl(req).replace(/\/$/, "")}/api/oauth/cpoauth/callback`;
 }
 
-function normalizeReturnTo(raw) {
+export function normalizeReturnTo(raw) {
   const value = String(raw ?? "").trim();
-  if (!value.startsWith("/") || value.startsWith("//")) {
+  if (!value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(value)) return "/problemset";
+  try {
+    const decoded = decodeURIComponent(value);
+    if (decoded.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(decoded)) return "/problemset";
+    const base = "https://return.invalid";
+    const parsed = new URL(value, base);
+    if (parsed.origin !== base) return "/problemset";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
     return "/problemset";
   }
-  return value;
 }
 
 const ADMIN_TOKEN_LENGTH = 32;
@@ -343,6 +351,10 @@ function generateAdminToken() {
     token += ADMIN_TOKEN_ALPHABET[bytes[i] % ADMIN_TOKEN_ALPHABET.length];
   }
   return token;
+}
+
+function hashAdminToken(token) {
+  return createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
 function toRootUser() {
@@ -1019,15 +1031,13 @@ async function findOrCreateCpoauthUser(profile) {
 }
 
 async function getAdminByHeader(req) {
-  const adminUid = String(req.header("x-admin-uid") ?? "").trim();
-  if (!adminUid) return null;
+  const session = readBearerSession(req.header("authorization"));
+  if (!session) return null;
 
-  if (adminUid === "root") {
-    const adminToken = String(req.header("x-admin-token") ?? "").trim();
-    if (!isValidAdminToken(adminToken)) return null;
+  if (session.kind === "root" && session.uid === "root") {
     const [tokenRows] = await dbPool.query(
-      "SELECT id FROM admin_tokens WHERE BINARY token = ? LIMIT 1",
-      [adminToken]
+      "SELECT id FROM admin_tokens WHERE id = ? LIMIT 1",
+      [session.adminTokenId]
     );
     if (!Array.isArray(tokenRows) || tokenRows.length === 0) return null;
     return {
@@ -1040,7 +1050,7 @@ async function getAdminByHeader(req) {
 
   const [rows] = await dbPool.query(
     "SELECT id, uid, is_admin, is_banned FROM users WHERE uid = ? LIMIT 1",
-    [adminUid]
+    [session.uid]
   );
   if (!Array.isArray(rows) || rows.length === 0) return null;
   const admin = rows[0];
@@ -1058,11 +1068,11 @@ async function requireAdmin(req, res) {
 }
 
 async function getUserByHeader(req) {
-  const uid = normalizeUid(req.header("x-user-uid"));
-  if (!uid) return null;
+  const session = readBearerSession(req.header("authorization"));
+  if (!session || session.kind !== "user") return null;
   const [rows] = await dbPool.query(
     "SELECT id, uid, name, email, avatar_url, profile_cover_url, bio, ai_model_id, submission_analysis_mode, autosave_interval_seconds, highlighter_enabled, is_admin, is_banned, records_public, created_at FROM users WHERE uid = ? LIMIT 1",
-    [uid]
+    [session.uid]
   );
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return rows[0];
@@ -2033,14 +2043,15 @@ export function buildRouter() {
   });
 
   router.post("/auth/admin-token/session", async (req, res) => {
+    res.set("Cache-Control", "no-store");
     const token = String(req.body?.token ?? "").trim();
     if (!isValidAdminToken(token)) {
       return res.status(400).json({ error: "token must be 32 chars with A-Z a-z 0-9" });
     }
 
     const [rows] = await dbPool.query(
-      "SELECT id FROM admin_tokens WHERE BINARY token = ? LIMIT 1",
-      [token]
+      "SELECT id FROM admin_tokens WHERE BINARY token_hash = ? LIMIT 1",
+      [hashAdminToken(token)]
     );
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(401).json({ error: "鏃犳晥鐨凾oken" });
@@ -2048,7 +2059,8 @@ export function buildRouter() {
 
     return res.status(201).json({
       session: {
-        user: toRootUser()
+        user: toRootUser(),
+        token: createSessionToken("root", "root", Number(rows[0].id))
       }
     });
   });
@@ -2136,7 +2148,6 @@ export function buildRouter() {
       );
 
       loginCallbackUrl.searchParams.set("ticket", ticket);
-      loginCallbackUrl.searchParams.set("returnTo", returnTo);
       return res.redirect(302, loginCallbackUrl.toString());
     } catch (err) {
       loginCallbackUrl.searchParams.set("error", String(err?.message ?? err));
@@ -2145,6 +2156,7 @@ export function buildRouter() {
   });
 
   router.post("/oauth/cpoauth/session", async (req, res) => {
+    res.set("Cache-Control", "no-store");
     const ticket = String(req.body?.ticket ?? "").trim();
     if (!ticket) {
       return res.status(400).json({ error: "ticket is required" });
@@ -2179,7 +2191,8 @@ export function buildRouter() {
     return res.status(201).json({
       session: {
         user: toPublicUser(rows[0]),
-        returnTo
+        returnTo,
+        token: createSessionToken(uid)
       }
     });
   });
@@ -3362,12 +3375,12 @@ export function buildRouter() {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
     const [rows] = await dbPool.query(
-      "SELECT id, token, created_by_uid, created_at FROM admin_tokens ORDER BY id DESC"
+      "SELECT id, created_by_uid, created_at FROM admin_tokens ORDER BY id DESC"
     );
     return res.json({
       tokens: rows.map((row) => ({
         id: Number(row.id),
-        token: String(row.token ?? ""),
+        token: "",
         createdByUid: String(row.created_by_uid ?? ""),
         createdAt: row.created_at
       }))
@@ -3390,8 +3403,8 @@ export function buildRouter() {
       const candidate = generateAdminToken();
       try {
         const [result] = await dbPool.query(
-          "INSERT INTO admin_tokens (token, created_by_uid) VALUES (?, ?)",
-          [candidate, String(admin.uid ?? "") || null]
+          "INSERT INTO admin_tokens (token_hash, created_by_uid) VALUES (?, ?)",
+          [hashAdminToken(candidate), String(admin.uid ?? "") || null]
         );
         createdToken = candidate;
         insertId = Number(result?.insertId ?? 0);
@@ -3408,14 +3421,14 @@ export function buildRouter() {
     }
 
     const [rows] = await dbPool.query(
-      "SELECT id, token, created_by_uid, created_at FROM admin_tokens WHERE id = ? LIMIT 1",
+      "SELECT id, created_by_uid, created_at FROM admin_tokens WHERE id = ? LIMIT 1",
       [insertId]
     );
     const row = rows[0];
     return res.status(201).json({
       token: {
         id: Number(row.id),
-        token: String(row.token ?? ""),
+        token: createdToken,
         createdByUid: String(row.created_by_uid ?? ""),
         createdAt: row.created_at
       }

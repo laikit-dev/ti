@@ -379,7 +379,7 @@ export const jaJP = {
       save: "設定を保存",
       creatingToken: "生成中...",
       createToken: "トークンを生成",
-      tokenHint: "最大 2 つのトークンを保持できます。32 文字、英数字、大文字小文字区別あり。",
+      tokenHint: "最大 2 つまで保持できます。元の値は作成時に一度だけ表示されるため、安全に保存してください。",
       createdBy: "作成者",
       createdAt: "作成日時",
       noTokens: "トークンがありません"

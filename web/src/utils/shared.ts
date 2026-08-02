@@ -34,21 +34,22 @@ export function formatDate(value: string | null | undefined): string {
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
-/** Read user UID from localStorage, or empty string. Shared by api layer. */
-export function readLocalUid(): string {
-    const raw = localStorage.getItem("ti.user");
-    if (!raw) return "";
-    try {
-        const parsed = JSON.parse(raw) as { uid?: string };
-        return String(parsed.uid ?? "");
-    } catch {
-        localStorage.removeItem("ti.user");
-        return "";
-    }
+const LOCAL_SESSION_KEY = "ti.session";
+
+export function saveBearerSession(token: string): void {
+    localStorage.setItem(LOCAL_SESSION_KEY, String(token ?? "").trim());
 }
 
-/** Build { "x-user-uid": uid } header object for authenticated API calls. */
+export function loadBearerSession(): string {
+    return String(localStorage.getItem(LOCAL_SESSION_KEY) ?? "").trim();
+}
+
+export function clearBearerSession(): void {
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+}
+
+/** Build the server-verifiable Authorization header for authenticated API calls. */
 export function userAuthHeaders(): Record<string, string> {
-    const uid = readLocalUid();
-    return uid ? { "x-user-uid": uid } : {};
+    const token = loadBearerSession();
+    return token ? { Authorization: `Bearer ${token}` } : {};
 }
