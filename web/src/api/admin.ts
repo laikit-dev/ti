@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiBaseUrl } from "../api";
-import { loadAdminTokenSession, loadLocalUser, type AuthUser } from "./auth";
+import { type AuthUser } from "./auth";
+import { userAuthHeaders } from "../utils/shared";
 import type { ChoiceOption, ProblemQuestion, ProblemsetSummary } from "./problemset";
 import { invalidatePublicSiteContentCache, type SystemPage } from "./siteContent";
 
@@ -117,12 +118,7 @@ export interface AdminSystemPagesPayload {
 }
 
 function adminHeaders() {
-  const user = loadLocalUser();
-  const adminToken = loadAdminTokenSession();
-  return {
-    "x-admin-uid": user?.uid ?? "",
-    "x-admin-token": adminToken
-  };
+  return userAuthHeaders();
 }
 
 export async function fetchAdminUsers(): Promise<AuthUser[]> {

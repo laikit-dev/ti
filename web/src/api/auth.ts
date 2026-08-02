@@ -1,4 +1,5 @@
 import { apiBaseUrl, apiGet, apiPatch, apiPost } from "../api";
+import { clearBearerSession, saveBearerSession, userAuthHeaders } from "../utils/shared";
 
 export type AutosaveIntervalSeconds = 0 | 30 | 60 | 120 | 300 | 600;
 
@@ -55,17 +56,18 @@ interface CpoauthSessionResponse {
   session: {
     user: AuthUser;
     returnTo: string;
+    token: string;
   };
 }
 
 interface AdminTokenSessionResponse {
   session: {
     user: AuthUser;
+    token: string;
   };
 }
 
 const LOCAL_USER_KEY = "ti.user";
-const LOCAL_ADMIN_TOKEN_KEY = "ti.admin.token";
 
 export function buildCpoauthAuthorizeUrl(returnTo = "/problemset"): string {
   const url = new URL("/api/oauth/cpoauth/authorize", apiBaseUrl);
@@ -78,6 +80,7 @@ export function buildCpoauthAuthorizeUrl(returnTo = "/problemset"): string {
 
 export async function redeemCpoauthTicket(ticket: string): Promise<{ user: AuthUser; returnTo: string }> {
   const result = await apiPost<CpoauthSessionResponse>("/api/oauth/cpoauth/session", { ticket });
+  saveBearerSession(result.session.token);
   return {
     user: result.session.user,
     returnTo: result.session.returnTo || "/problemset"
@@ -89,20 +92,8 @@ export async function loginWithAdminToken(token: string): Promise<AuthUser> {
   const result = await apiPost<AdminTokenSessionResponse>("/api/auth/admin-token/session", {
     token: normalized
   });
-  setAdminTokenSession(normalized);
+  saveBearerSession(result.session.token);
   return result.session.user;
-}
-
-export function setAdminTokenSession(token: string) {
-  localStorage.setItem(LOCAL_ADMIN_TOKEN_KEY, String(token ?? "").trim());
-}
-
-export function loadAdminTokenSession(): string {
-  return String(localStorage.getItem(LOCAL_ADMIN_TOKEN_KEY) ?? "").trim();
-}
-
-export function clearAdminTokenSession() {
-  localStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
 }
 
 export function saveLocalUser(user: AuthUser) {
@@ -121,7 +112,7 @@ export function loadLocalUser(): AuthUser | null {
 
 export function clearLocalUser() {
   localStorage.removeItem(LOCAL_USER_KEY);
-  localStorage.removeItem(LOCAL_ADMIN_TOKEN_KEY);
+  clearBearerSession();
 }
 
 export async function getUserByUid(uid: string): Promise<PublicUserProfile> {
@@ -154,10 +145,9 @@ export async function getPersonalExportStatus(): Promise<PersonalExportStatus> {
 }
 
 export async function requestPersonalDataExport(): Promise<{ blob: Blob; filename: string }> {
-  const uid = loadLocalUser()?.uid ?? "";
   const response = await fetch(`${apiBaseUrl}/api/users/_me/export`, {
     method: "POST",
-    headers: uid ? { "x-user-uid": uid } : {}
+    headers: userAuthHeaders()
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));

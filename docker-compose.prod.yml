@@ -46,6 +46,7 @@ services:
       DATABASE_USER: ${DATABASE_USER:-app}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the root .env file}
       DATABASE_NAME: ${DATABASE_NAME:-luogu_ti}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in the root .env file}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PUBLIC_API_BASE_URL: ""

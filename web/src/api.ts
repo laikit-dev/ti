@@ -1,6 +1,6 @@
 import { handleForbiddenNavigation } from "./utils/authRedirect";
 import { translate } from "./i18n";
-import { readLocalUid } from "./utils/shared";
+import { userAuthHeaders } from "./utils/shared";
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/$/, "");
@@ -40,10 +40,9 @@ function toNetworkError(err: unknown): Error {
 }
 
 export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
-  const uid = readLocalUid();
   const headers = {
     ...(init?.headers ?? {}),
-    ...(uid ? { "x-user-uid": uid } : {})
+    ...userAuthHeaders()
   };
   let response: Response;
   try {
@@ -72,10 +71,9 @@ export async function apiPatch<T>(path: string, body: unknown, init?: RequestIni
 }
 
 export async function apiDelete<T = void>(path: string, init?: RequestInit): Promise<T> {
-  const uid = readLocalUid();
   const headers: Record<string, string> = {
     ...(init?.headers as Record<string, string> ?? {}),
-    ...(uid ? { "x-user-uid": uid } : {})
+    ...userAuthHeaders()
   };
   let response: Response;
   try {
@@ -102,11 +100,10 @@ export async function apiDelete<T = void>(path: string, init?: RequestInit): Pro
 }
 
 async function apiFetchWithBody<T>(method: string, path: string, body: unknown, init?: RequestInit): Promise<T> {
-  const uid = readLocalUid();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> ?? {}),
-    ...(uid ? { "x-user-uid": uid } : {})
+    ...userAuthHeaders()
   };
   let response: Response;
   try {

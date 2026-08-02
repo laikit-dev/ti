@@ -491,7 +491,7 @@ onMounted(async () => {
           </tr>
           <tr v-for="item in tokens" :key="item.id">
             <td>{{ item.id }}</td>
-            <td>{{ item.token }}</td>
+            <td>{{ item.token || "••••••••" }}</td>
             <td>{{ item.createdByUid || "-" }}</td>
             <td>{{ item.createdAt }}</td>
             <td>

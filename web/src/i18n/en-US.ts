@@ -530,7 +530,7 @@ This is an input question stem with Markdown and LaTeX support. This sample inte
       save: "Save config",
       creatingToken: "Creating...",
       createToken: "Create token",
-      tokenHint: "Keep at most 2 tokens. Each token is 32 characters long and case-sensitive.",
+      tokenHint: "Keep at most 2 tokens. The raw value is shown only once when created; store it securely.",
       createdBy: "Created by",
       createdAt: "Created at",
       noTokens: "No tokens yet"

@@ -525,7 +525,7 @@ C. 选项C
       save: "保存配置",
       creatingToken: "生成中...",
       createToken: "生成 Token",
-      tokenHint: "最多保留 2 个 token；长度 32 位，包含大小写字母和数字，校验区分大小写。",
+      tokenHint: "最多保留 2 个 token；原始值仅在创建时显示一次，请立即妥善保存。",
       createdBy: "创建人",
       createdAt: "创建时间",
       noTokens: "暂无 token"

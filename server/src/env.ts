@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -14,6 +15,7 @@ const envPath = [
 if (envPath) dotenv.config({ path: envPath });
 
 const port = Number(process.env.PORT ?? 3000);
+const sessionSecret = String(process.env.SESSION_SECRET ?? "").trim();
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -21,6 +23,7 @@ export const env = {
   publicApiBaseUrl: String(process.env.PUBLIC_API_BASE_URL ?? "").trim(),
   webBaseUrl: String(process.env.WEB_BASE_URL ?? "").trim(),
   cpoauthBaseUrl: process.env.CPOAUTH_BASE_URL ?? "https://auth.luogu.me",
+  sessionSecret: sessionSecret || randomBytes(32).toString("hex"),
   db: {
     host: process.env.DATABASE_HOST ?? process.env.DB_HOST ?? "localhost",
     port: Number(process.env.DATABASE_PORT ?? process.env.DB_PORT ?? 3306),

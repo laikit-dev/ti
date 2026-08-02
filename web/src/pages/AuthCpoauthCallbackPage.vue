@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import TiLayout from "../layouts/TiLayout.vue";
-import { clearAdminTokenSession, redeemCpoauthTicket, saveLocalUser } from "../api/auth";
+import { redeemCpoauthTicket, saveLocalUser } from "../api/auth";
 import { BANNED_ROUTE_PATH, isBannedMessage } from "../utils/authRedirect";
 import { useAppLocale } from "../i18n";
 import type { AppLocale } from "../i18n/messages";
@@ -39,7 +39,6 @@ function handleLocaleChange(event: Event) {
 onMounted(async () => {
   const ticket = String(route.query.ticket ?? "").trim();
   const directError = String(route.query.error ?? "").trim();
-  const fallbackReturnTo = String(route.query.returnTo ?? "/problemset");
 
   if (directError) {
     if (isBannedMessage(directError)) {
@@ -61,9 +60,8 @@ onMounted(async () => {
 
   try {
     const { user, returnTo } = await redeemCpoauthTicket(ticket);
-    clearAdminTokenSession();
     saveLocalUser(user);
-    await router.replace(user.isBanned ? BANNED_ROUTE_PATH : (returnTo || fallbackReturnTo || "/problemset"));
+    await router.replace(user.isBanned ? BANNED_ROUTE_PATH : (returnTo || "/problemset"));
   } catch (err) {
     pending.value = false;
     error.value = String((err as Error)?.message ?? err);
